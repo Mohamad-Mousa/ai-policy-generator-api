@@ -17,7 +17,7 @@ class PostmanService {
   static generatePostmanCollection() {
     const collection = new Collection({
       info: {
-        name: "Phd APIs",
+        name: "Policy Generator APIs",
         schema:
           "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
       },

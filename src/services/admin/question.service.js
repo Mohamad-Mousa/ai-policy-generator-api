@@ -18,9 +18,6 @@ class QuestionService extends BaseService {
       : "";
     let query = {
       isDeleted: false,
-      ...(req_query.term && {
-        $or: [{ question: { $regex: new RegExp(regexSearch, "i") } }],
-      }),
       ...(req_query.isActive !== undefined && {
         isActive: req_query.isActive === "true",
       }),
@@ -38,6 +35,20 @@ class QuestionService extends BaseService {
     } else {
       pipes.push({ $sort: { createdAt: -1 } });
     }
+
+    const termStage =
+      req_query.term && regexSearch
+        ? [
+            {
+              $match: {
+                $or: [
+                  { question: { $regex: new RegExp(regexSearch, "i") } },
+                  { "domain.title": { $regex: new RegExp(regexSearch, "i") } },
+                ],
+              },
+            },
+          ]
+        : [];
 
     let result = await this.Question.aggregate([
       { $match: query },
@@ -69,6 +80,7 @@ class QuestionService extends BaseService {
       },
       { $unwind: { path: "$domain", preserveNullAndEmptyArrays: true } },
       { $match: { domain: { $ne: null } } },
+      ...termStage,
       ...pipes,
       {
         $facet: {
