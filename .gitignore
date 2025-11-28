@@ -1,0 +1,9 @@
+/public
+/node_modules
+comments.txt
+*.log
+*.env
+*.lock
+.DS_Store
+package-lock.json
+postman_collection.json
