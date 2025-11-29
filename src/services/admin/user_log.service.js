@@ -28,7 +28,10 @@ class UserLogService extends BaseService {
       if (req_query.sortDirection == "desc") dir = -1;
       let key = req_query.sortBy;
       pipes.push({ $sort: { [key]: dir } });
+    } else {
+      pipes.push({ $sort: { createdAt: -1 } });
     }
+
     let result = await this.UserLog.aggregate([
       {
         $lookup: {
