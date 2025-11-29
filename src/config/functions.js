@@ -6,4 +6,5 @@ module.exports = {
   settings: "settings",
   domains: "domains",
   questions: "questions",
+  assessments: "assessments",
 };

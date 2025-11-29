@@ -425,6 +425,82 @@ module.exports = {
           ],
         },
         {
+          folder: "Assessments",
+          auth: null,
+          items: [
+            {
+              name: "Find Many",
+              method: "GET",
+              url: "{{local}}/admin/assessment",
+              params: [
+                { key: "page", value: "1", type: "query" },
+                { key: "limit", value: "10", type: "query" },
+                { key: "term", value: "", type: "query" },
+                { key: "isActive", value: "", type: "query" },
+                { key: "domain", value: "", type: "query" },
+                { key: "status", value: "", type: "query" },
+                { key: "sortBy", value: "createdAt", type: "query" },
+                { key: "sortDirection", value: "desc", type: "query" },
+              ],
+            },
+            {
+              name: "Find One",
+              method: "GET",
+              url: "{{local}}/admin/assessment/:id",
+              params: [],
+            },
+            {
+              name: "Create",
+              method: "POST",
+              url: "{{local}}/admin/assessment",
+              bodyType: "raw",
+              body: {
+                domain: "<objectId>",
+                title: "<string>",
+                description: "<string>",
+                fullName: "<string>",
+                status: "completed",
+                isActive: true,
+                questions: [
+                  {
+                    question: "<objectId>",
+                    answer: "<string>",
+                  },
+                ],
+              },
+              params: [],
+            },
+            {
+              name: "Update",
+              method: "PUT",
+              url: "{{local}}/admin/assessment/update",
+              bodyType: "raw",
+              body: {
+                _id: "<objectId>",
+                domain: "<objectId>",
+                title: "<string>",
+                description: "<string>",
+                fullName: "<string>",
+                status: "draft",
+                isActive: true,
+                questions: [
+                  {
+                    question: "<objectId>",
+                    answer: "<string>",
+                  },
+                ],
+              },
+              params: [],
+            },
+            {
+              name: "Delete",
+              method: "DELETE",
+              url: "{{local}}/admin/assessment/delete/:ids",
+              params: [],
+            },
+          ],
+        },
+        {
           folder: "Settings",
           auth: null,
           items: [
