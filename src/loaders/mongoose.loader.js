@@ -36,6 +36,7 @@ class MongooseLoader {
     this.models.Setting = require("../models/setting.model");
     this.models.Question = require("../models/question.model");
     this.models.Assessment = require("../models/assessment.model");
+    this.models.Policy = require("../models/policy.model");
   }
 
   static connect() {

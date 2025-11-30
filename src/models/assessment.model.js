@@ -61,6 +61,15 @@ assessmentSchema.index({ domain: 1, isDeleted: 1, createdAt: -1 });
 assessmentSchema.index({ isDeleted: 1, createdAt: -1 });
 assessmentSchema.index({ status: 1, isDeleted: 1 });
 assessmentSchema.index({ status: 1, isDeleted: 1, createdAt: -1 });
+assessmentSchema.index({ domain: 1, status: 1, isDeleted: 1 });
+assessmentSchema.index({ isActive: 1, status: 1, isDeleted: 1 });
+assessmentSchema.index({ domain: 1, isActive: 1, status: 1, isDeleted: 1 });
+assessmentSchema.index({ domain: 1, status: 1, isDeleted: 1, createdAt: -1 });
+assessmentSchema.index({ isActive: 1, status: 1, isDeleted: 1, createdAt: -1 });
+assessmentSchema.index({ _id: 1, isDeleted: 1 });
+assessmentSchema.index({ _id: 1, domain: 1, isDeleted: 1, isActive: 1 });
+// Index for policy service findOne query optimization ($in on _id + isDeleted filter + createdAt sort)
+assessmentSchema.index({ _id: 1, isDeleted: 1, createdAt: -1 });
 
 const Assessment = mongoose.model("Assessment", assessmentSchema);
 

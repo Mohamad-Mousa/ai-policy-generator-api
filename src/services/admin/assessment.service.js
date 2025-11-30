@@ -25,7 +25,13 @@ class AssessmentService extends BaseService {
           isActive: req_query.isActive === "true",
         }),
       ...(req_query.domain && {
-        domain: this.ObjectId(req_query.domain),
+        domain: req_query.domain.includes(",")
+          ? {
+              $in: req_query.domain
+                .split(",")
+                .map((id) => this.ObjectId(id.trim())),
+            }
+          : this.ObjectId(req_query.domain),
       }),
       ...(req_query.status && {
         status: req_query.status,
@@ -331,6 +337,331 @@ class AssessmentService extends BaseService {
       { _id: { $in: ids } },
       { isDeleted: true }
     );
+  }
+
+  async import(file) {
+    const XLSX = require("xlsx");
+    const fs = require("fs");
+
+    if (!file) {
+      throw new CustomError("File not provided", 400);
+    }
+
+    let workbook;
+
+    if (file.buffer) {
+      workbook = XLSX.read(file.buffer, { type: "buffer" });
+    } else if (file.path) {
+      if (!fs.existsSync(file.path)) {
+        throw new CustomError("File not found", 404);
+      }
+      workbook = XLSX.readFile(file.path);
+    } else {
+      throw new CustomError("Invalid file object", 400);
+    }
+
+    let sheetName = workbook.SheetNames.find(
+      (name) => name.toLowerCase() === "template"
+    );
+
+    if (!sheetName) {
+      sheetName = workbook.SheetNames[0];
+    }
+
+    if (!sheetName) {
+      throw new CustomError("No sheets found in Excel file", 400);
+    }
+
+    const worksheet = workbook.Sheets[sheetName];
+    const data = XLSX.utils.sheet_to_json(worksheet);
+
+    if (!data || data.length === 0) {
+      throw new CustomError("Excel file is empty", 400);
+    }
+
+    const requiredColumns = ["Title", "Domain", "Question", "Answer"];
+    const firstRow = data[0];
+    const missingColumns = requiredColumns.filter(
+      (col) => !firstRow.hasOwnProperty(col)
+    );
+
+    if (missingColumns.length > 0) {
+      throw new CustomError(
+        `Missing required columns: ${missingColumns.join(", ")}`,
+        400
+      );
+    }
+
+    const assessmentsMap = {};
+    for (const row of data) {
+      const title = row.Title?.toString().trim();
+      if (!title) continue;
+
+      if (!assessmentsMap[title]) {
+        assessmentsMap[title] = {
+          title: title,
+          description: row.Description?.toString().trim() || "",
+          fullName: row["Full Name"]?.toString().trim() || "",
+          domain: row.Domain?.toString().trim(),
+          questions: [],
+        };
+      }
+
+      const question = row.Question?.toString().trim();
+      const answer = row.Answer?.toString().trim() || "";
+
+      if (question) {
+        assessmentsMap[title].questions.push({
+          question: question,
+          answer: answer,
+        });
+      }
+    }
+
+    const results = {
+      success: [],
+      errors: [],
+      total: Object.keys(assessmentsMap).length,
+    };
+
+    for (const [title, assessmentData] of Object.entries(assessmentsMap)) {
+      try {
+        let domain = null;
+        if (assessmentData.domain) {
+          const domainQuery = { isDeleted: false };
+          if (this.mongoose.Types.ObjectId.isValid(assessmentData.domain)) {
+            domainQuery._id = this.ObjectId(assessmentData.domain);
+          } else {
+            domainQuery.title = assessmentData.domain;
+          }
+
+          domain = await this.Domain.findOne(domainQuery);
+
+          if (!domain) {
+            results.errors.push({
+              title: title,
+              error: `Domain not found: ${assessmentData.domain}`,
+            });
+            continue;
+          }
+        }
+
+        const questionsData = [];
+        for (const qa of assessmentData.questions) {
+          const questionQuery = { isDeleted: false };
+          if (this.mongoose.Types.ObjectId.isValid(qa.question)) {
+            questionQuery._id = this.ObjectId(qa.question);
+          } else {
+            questionQuery.question = qa.question;
+          }
+
+          const question = await this.Question.findOne(questionQuery);
+
+          if (!question) {
+            results.errors.push({
+              title: title,
+              error: `Question not found: ${qa.question}`,
+            });
+            continue;
+          }
+
+          if (domain && question.domain.toString() !== domain._id.toString()) {
+            results.errors.push({
+              title: title,
+              error: `Question "${qa.question}" does not belong to domain "${domain.title}"`,
+            });
+            continue;
+          }
+
+          questionsData.push({
+            question: question._id,
+            answer: qa.answer,
+          });
+        }
+
+        const hasTitle =
+          assessmentData.title && assessmentData.title.trim() !== "";
+        const hasDescription =
+          assessmentData.description &&
+          assessmentData.description.trim() !== "";
+        const hasFullName =
+          assessmentData.fullName && assessmentData.fullName.trim() !== "";
+        const hasDomain = domain !== null;
+        const hasQuestions = questionsData.length > 0;
+        const allQuestionsAnswered =
+          hasQuestions &&
+          questionsData.every((q) => q.answer && q.answer.trim() !== "");
+
+        const status =
+          hasTitle &&
+          hasDescription &&
+          hasFullName &&
+          hasDomain &&
+          hasQuestions &&
+          allQuestionsAnswered
+            ? "completed"
+            : "draft";
+
+        const assessment = await this.Assessment({
+          ...(domain && { domain: domain._id }),
+          questions: questionsData,
+          title: assessmentData.title,
+          ...(assessmentData.description && {
+            description: assessmentData.description,
+          }),
+          ...(assessmentData.fullName && { fullName: assessmentData.fullName }),
+          status: status,
+          isActive: true,
+        }).save();
+
+        results.success.push({
+          title: title,
+          id: assessment._id,
+        });
+      } catch (error) {
+        results.errors.push({
+          title: title,
+          error: error.message || "Unknown error",
+        });
+      }
+    }
+
+    if (file.path && fs.existsSync(file.path)) {
+      try {
+        fs.unlinkSync(file.path);
+      } catch (error) {
+        console.error("Error deleting file:", error);
+      }
+    }
+
+    return results;
+  }
+
+  async generateExcelTemplate(domainId) {
+    const XLSX = require("xlsx");
+
+    if (!domainId) {
+      throw new CustomError("Domain ID is required", 400);
+    }
+
+    if (!this.mongoose.Types.ObjectId.isValid(domainId)) {
+      throw new CustomError("Invalid domain ID format", 400);
+    }
+
+    const domain = await this.Domain.findOne({
+      _id: this.ObjectId(domainId),
+      isDeleted: false,
+      isActive: true,
+    }).select("_id title");
+
+    if (!domain) {
+      throw new CustomError("Domain not found or inactive", 404);
+    }
+
+    const questions = await this.Question.find({
+      domain: this.ObjectId(domainId),
+      isDeleted: false,
+      isActive: true,
+    }).select("_id question");
+
+    if (questions.length === 0) {
+      throw new CustomError("No active questions found for this domain", 404);
+    }
+
+    const templateData = questions.map((q, index) => ({
+      Title: "",
+      Description: "",
+      "Full Name": "",
+      Domain: domain.title,
+      Question: q.question,
+      Answer: "",
+    }));
+
+    const workbook = XLSX.utils.book_new();
+
+    const instructionsData = [
+      [`ASSESSMENT IMPORT TEMPLATE - ${domain.title.toUpperCase()}`],
+      [""],
+      ["Column Descriptions:"],
+      [
+        "Title",
+        "Required. Assessment title. Rows with same title are grouped into one assessment.",
+      ],
+      [
+        "Domain",
+        `Pre-filled. Domain: ${domain.title}. Do not change this value.`,
+      ],
+      ["Question", "Pre-filled. Question text. Do not change this value."],
+      ["Answer", "Required. Fill in the answer to each question."],
+      [
+        "Description",
+        "Required for completed status. Assessment description (same for all rows with same Title).",
+      ],
+      [
+        "Full Name",
+        "Required for completed status. Full name of the person (same for all rows with same Title).",
+      ],
+      [""],
+      ["How to Use:"],
+      [
+        "1. Fill in the 'Title' column - use the same title for all questions that belong to the same assessment",
+      ],
+      ["2. Fill in the 'Answer' column for each question"],
+      [
+        "3. Fill 'Description' and 'Full Name' if you want the assessment to be marked as 'completed'",
+      ],
+      ["4. You can create multiple assessments by using different titles"],
+      [
+        "5. Do NOT change the 'Domain' or 'Question' columns - they are pre-filled correctly",
+      ],
+      [""],
+      ["Automatic Status Determination:"],
+      [
+        "- Status will be automatically set to 'completed' if ALL required fields are filled:",
+      ],
+      ["  • Title (required)"],
+      ["  • Description (required for completed)"],
+      ["  • Full Name (required for completed)"],
+      ["  • Domain (pre-filled)"],
+      ["  • All Questions with Answers (required)"],
+      ["- If any required field is missing, status will be set to 'draft'"],
+      [""],
+      ["Important Notes:"],
+      [
+        "- Multiple rows with the same Title will be grouped into one assessment",
+      ],
+      ["- Each row represents one question-answer pair"],
+      [
+        "- All questions in this template belong to the domain: " +
+          domain.title,
+      ],
+    ];
+
+    const instructionsSheet = XLSX.utils.aoa_to_sheet(instructionsData);
+    XLSX.utils.book_append_sheet(workbook, instructionsSheet, "Instructions");
+
+    const templateSheet = XLSX.utils.json_to_sheet(templateData);
+    XLSX.utils.book_append_sheet(workbook, templateSheet, "Template");
+
+    const questionsReferenceData = questions.map((q) => ({
+      "Question ID": q._id.toString(),
+      "Question Text": q.question,
+      Domain: domain.title,
+    }));
+
+    const questionsSheet = XLSX.utils.json_to_sheet(questionsReferenceData);
+    XLSX.utils.book_append_sheet(
+      workbook,
+      questionsSheet,
+      "Questions Reference"
+    );
+
+    const buffer = XLSX.write(workbook, {
+      type: "buffer",
+      bookType: "xlsx",
+    });
+
+    return buffer;
   }
 }
 

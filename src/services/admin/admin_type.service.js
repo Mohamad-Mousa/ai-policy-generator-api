@@ -17,9 +17,10 @@ class AdminTypeService extends BaseService {
     let query = {
       isDeleted: false,
       ...(req_query.term && { name: { $regex: new RegExp(regexSearch, "i") } }),
-      ...(req_query.isActive !== undefined && {
-        isActive: req_query.isActive === "true",
-      }),
+      ...(req_query.isActive &&
+        req_query.isActive !== undefined && {
+          isActive: req_query.isActive === "true",
+        }),
     };
 
     let pipes = [];

@@ -18,9 +18,10 @@ class QuestionService extends BaseService {
       : "";
     let query = {
       isDeleted: false,
-      ...(req_query.isActive !== undefined && {
-        isActive: req_query.isActive === "true",
-      }),
+      ...(req_query.isActive &&
+        req_query.isActive !== undefined && {
+          isActive: req_query.isActive === "true",
+        }),
       ...(req_query.domain && {
         domain: this.ObjectId(req_query.domain),
       }),

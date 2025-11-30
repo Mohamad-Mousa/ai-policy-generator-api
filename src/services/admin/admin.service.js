@@ -27,9 +27,10 @@ class AdminService extends BaseService {
           { email: { $regex: new RegExp(regexSearch, "i") } },
         ],
       }),
-      ...(req_query.isActive !== undefined && {
-        isActive: req_query.isActive === "true",
-      }),
+      ...(req_query.isActive &&
+        req_query.isActive !== undefined && {
+          isActive: req_query.isActive === "true",
+        }),
     };
 
     let pipes = [];

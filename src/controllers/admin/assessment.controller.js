@@ -72,6 +72,58 @@ class AssessmentController {
       ResponseService.error(res, error.message, 400);
     }
   });
+
+  import = asyncHandler(async (req, res) => {
+    try {
+      if (!req.file) {
+        return ResponseService.error(res, "No file uploaded", 400);
+      }
+
+      const results = await this.assessmentService.import(req.file);
+
+      await this.userLogService.create(
+        req.decoded._id,
+        req.method,
+        "assessment",
+        `Assessments imported: ${results.success.length} successful, ${results.errors.length} errors`
+      );
+
+      ResponseService.success(res, "Import completed!", results, 200);
+    } catch (error) {
+      ResponseService.error(res, error.message, 400);
+    }
+  });
+
+  downloadTemplate = asyncHandler(async (req, res) => {
+    try {
+      const domainId = req.query.domain;
+
+      if (!domainId) {
+        return ResponseService.error(
+          res,
+          "Domain ID is required. Use ?domain=<domain_id>",
+          400
+        );
+      }
+
+      const buffer = await this.assessmentService.generateExcelTemplate(
+        domainId
+      );
+
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      );
+      res.setHeader(
+        "Content-Disposition",
+        'attachment; filename="assessment_import_template.xlsx"'
+      );
+
+      res.send(buffer);
+    } catch (error) {
+      ResponseService.error(res, error.message, 400);
+    }
+  });
 }
 
 module.exports = AssessmentController;

@@ -7,4 +7,5 @@ module.exports = {
   domains: "domains",
   questions: "questions",
   assessments: "assessments",
+  policies: "policies",
 };
