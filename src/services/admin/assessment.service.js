@@ -432,7 +432,15 @@ class AssessmentService extends BaseService {
           if (this.mongoose.Types.ObjectId.isValid(assessmentData.domain)) {
             domainQuery._id = this.ObjectId(assessmentData.domain);
           } else {
-            domainQuery.title = assessmentData.domain;
+            // Case-insensitive domain lookup
+            domainQuery.title = {
+              $regex: new RegExp(
+                `^${assessmentData.domain
+                  .trim()
+                  .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
+                "i"
+              ),
+            };
           }
 
           domain = await this.Domain.findOne(domainQuery);
@@ -453,6 +461,9 @@ class AssessmentService extends BaseService {
             questionQuery._id = this.ObjectId(qa.question);
           } else {
             questionQuery.question = qa.question;
+            if (domain) {
+              questionQuery.domain = domain._id;
+            }
           }
 
           const question = await this.Question.findOne(questionQuery);
@@ -460,7 +471,9 @@ class AssessmentService extends BaseService {
           if (!question) {
             results.errors.push({
               title: title,
-              error: `Question not found: ${qa.question}`,
+              error: `Question not found: ${qa.question}${
+                domain ? ` in domain "${domain.title}"` : ""
+              }`,
             });
             continue;
           }

@@ -16,6 +16,7 @@ class PolicyRouter {
     router.get("", this.policyController.findMany);
     router.get("/:id", this.policyController.findOne);
     router.post("", this.policyController.create);
+    router.delete("/delete/:ids", this.policyController.delete);
 
     app.use("/policy", router);
   }

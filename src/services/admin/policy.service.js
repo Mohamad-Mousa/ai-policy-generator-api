@@ -546,6 +546,11 @@ class PolicyService extends BaseService {
 
     return policy;
   }
+
+  async delete(ids) {
+    ids = ids.split(",");
+    await this.Policy.updateMany({ _id: { $in: ids } }, { isDeleted: true });
+  }
 }
 
 module.exports = PolicyService;

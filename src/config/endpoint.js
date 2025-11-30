@@ -542,7 +542,10 @@ module.exports = {
               name: "Find One",
               method: "GET",
               url: "{{local}}/admin/policy/:id",
-              params: [],
+              params: [
+                { key: "assessmentLimit", value: "10", type: "query" },
+                { key: "assessmentPage", value: "1", type: "query" },
+              ],
             },
             {
               name: "Create",
@@ -557,6 +560,12 @@ module.exports = {
                 riskAppetite: "Conservative",
                 implementationTimeline: "Immediate (0-3 months)",
               },
+              params: [],
+            },
+            {
+              name: "Delete",
+              method: "DELETE",
+              url: "{{local}}/admin/policy/delete/:ids",
               params: [],
             },
           ],

@@ -42,6 +42,21 @@ class PolicyController {
       ResponseService.error(res, error.message, 400);
     }
   });
+
+  delete = asyncHandler(async (req, res) => {
+    try {
+      await this.policyService.delete(req.params.ids);
+      await this.userLogService.create(
+        req.decoded._id,
+        req.method,
+        "policy",
+        "Policy deleted"
+      );
+      ResponseService.success(res, "Success!", null, 200);
+    } catch (error) {
+      ResponseService.error(res, error.message, 400);
+    }
+  });
 }
 
 module.exports = PolicyController;
