@@ -7,7 +7,11 @@ let config = {
   env: process.env.NODE_ENV,
   domain: process.env.DOMAIN,
   origin: process.env.ORIGIN,
-  allowedOrigins: ["http://localhost:4200"],
+  allowedOrigins: [
+    "http://localhost:4200",
+    "https://policygeneratorai.com",
+    "https://www.policygeneratorai.com",
+  ],
   claude: {
     apiKey: process.env.CLAUDE_API_KEY,
     apiUrl:
