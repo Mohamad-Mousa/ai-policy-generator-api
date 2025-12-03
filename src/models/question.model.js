@@ -1,4 +1,4 @@
-const { mongoose, ObjectId } = require("./model-template");
+const { mongoose, ObjectId, enums } = require("./model-template");
 
 const questionSchema = new mongoose.Schema(
   {
@@ -11,6 +11,14 @@ const questionSchema = new mongoose.Schema(
       type: ObjectId,
       required: true,
     },
+    type: {
+      type: String,
+      enum: enums.questionTypes,
+      required: true,
+    },
+    answers: [String],
+    min: Number,
+    max: Number,
     isActive: {
       type: Boolean,
       required: true,
@@ -32,9 +40,12 @@ questionSchema.index({ domain: 1, isDeleted: 1 });
 questionSchema.index({ domain: 1, isDeleted: 1, isActive: 1 });
 questionSchema.index({ domain: 1, isDeleted: 1, createdAt: -1 });
 questionSchema.index({ isDeleted: 1, createdAt: -1 });
-// Additional indexes for assessment service queries
-questionSchema.index({ question: 1, isDeleted: 1 }); // For import by question text lookup
-questionSchema.index({ _id: 1, isDeleted: 1 }); // For $in queries with isDeleted filter
+questionSchema.index({ question: 1, isDeleted: 1 });
+questionSchema.index({ _id: 1, isDeleted: 1 });
+questionSchema.index({ isDeleted: 1, type: 1 });
+questionSchema.index({ isDeleted: 1, type: 1, isActive: 1 });
+questionSchema.index({ domain: 1, isDeleted: 1, type: 1 });
+questionSchema.index({ isDeleted: 1, type: 1, createdAt: -1 });
 
 const Question = mongoose.model("Question", questionSchema);
 

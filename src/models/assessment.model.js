@@ -11,7 +11,8 @@ const assessmentSchema = new mongoose.Schema(
           type: ObjectId,
         },
         answer: {
-          type: String,
+          type: mongoose.Schema.Types.Mixed,
+          // Can be String for text/radio/number types, or Array for checkbox type
         },
       },
     ],

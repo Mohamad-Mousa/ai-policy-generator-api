@@ -22,4 +22,5 @@ module.exports = {
     "Medium-term (6-12 months)",
     "Long-term (12+ months)",
   ],
+  questionTypes: ["text", "radio", "checkbox", "number"],
 };

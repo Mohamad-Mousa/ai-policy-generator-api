@@ -12,6 +12,113 @@ class AssessmentService extends BaseService {
     this.bodyValidationService = BodyValidationService;
   }
 
+  async validateAnswer(question, answer) {
+    if (!question) {
+      throw new CustomError("Question not found", 404);
+    }
+
+    if (answer === undefined || answer === null || answer === "") {
+      throw new CustomError(
+        `Answer is required for question: ${question.question}`,
+        400
+      );
+    }
+
+    switch (question.type) {
+      case "text":
+        if (typeof answer !== "string") {
+          throw new CustomError(
+            `Answer must be a string for text type question: ${question.question}`,
+            400
+          );
+        }
+        break;
+
+      case "radio":
+        if (typeof answer !== "string") {
+          throw new CustomError(
+            `Answer must be a string for radio type question: ${question.question}`,
+            400
+          );
+        }
+        if (!question.answers || !Array.isArray(question.answers)) {
+          throw new CustomError(
+            `Question "${question.question}" is missing valid answer options`,
+            400
+          );
+        }
+        if (!question.answers.includes(answer)) {
+          throw new CustomError(
+            `Answer "${answer}" is not a valid option for question "${
+              question.question
+            }". Valid options: ${question.answers.join(", ")}`,
+            400
+          );
+        }
+        break;
+
+      case "checkbox":
+        if (!Array.isArray(answer)) {
+          throw new CustomError(
+            `Answer must be an array for checkbox type question: ${question.question}`,
+            400
+          );
+        }
+        if (answer.length === 0) {
+          throw new CustomError(
+            `At least one answer is required for checkbox type question: ${question.question}`,
+            400
+          );
+        }
+        if (!question.answers || !Array.isArray(question.answers)) {
+          throw new CustomError(
+            `Question "${question.question}" is missing valid answer options`,
+            400
+          );
+        }
+        const invalidAnswers = answer.filter(
+          (a) => !question.answers.includes(a)
+        );
+        if (invalidAnswers.length > 0) {
+          throw new CustomError(
+            `Invalid answer(s) "${invalidAnswers.join(", ")}" for question "${
+              question.question
+            }". Valid options: ${question.answers.join(", ")}`,
+            400
+          );
+        }
+        break;
+
+      case "number":
+        const numAnswer =
+          typeof answer === "string" ? parseFloat(answer) : answer;
+        if (isNaN(numAnswer) || typeof numAnswer !== "number") {
+          throw new CustomError(
+            `Answer must be a number for number type question: ${question.question}`,
+            400
+          );
+        }
+        if (question.min !== undefined && numAnswer < question.min) {
+          throw new CustomError(
+            `Answer ${numAnswer} is less than minimum value ${question.min} for question "${question.question}"`,
+            400
+          );
+        }
+        if (question.max !== undefined && numAnswer > question.max) {
+          throw new CustomError(
+            `Answer ${numAnswer} is greater than maximum value ${question.max} for question "${question.question}"`,
+            400
+          );
+        }
+        break;
+
+      default:
+        throw new CustomError(`Unknown question type: ${question.type}`, 400);
+    }
+
+    return true;
+  }
+
   async findMany(req_query, limit = 10) {
     if (req_query.limit) limit = +req_query.limit;
     let regexSearch = req_query.term
@@ -161,15 +268,21 @@ class AssessmentService extends BaseService {
         $match: { domain: { $ne: null } },
       },
       {
+        $unwind: {
+          path: "$questions",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
         $lookup: {
           from: "questions",
-          let: { questionIds: "$questions.question" },
+          let: { questionId: "$questions.question" },
           pipeline: [
             {
               $match: {
                 $expr: {
                   $and: [
-                    { $in: ["$_id", "$$questionIds"] },
+                    { $eq: ["$_id", "$$questionId"] },
                     { $eq: ["$isDeleted", false] },
                   ],
                 },
@@ -179,12 +292,54 @@ class AssessmentService extends BaseService {
               $project: {
                 _id: 1,
                 question: 1,
+                type: 1,
                 domain: 1,
+                min: 1,
+                max: 1,
                 isActive: 1,
               },
             },
           ],
-          as: "questionDetails",
+          as: "questionDetail",
+        },
+      },
+      {
+        $unwind: {
+          path: "$questionDetail",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $addFields: {
+          questions: {
+            $mergeObjects: [
+              "$questions",
+              {
+                question: "$questionDetail",
+              },
+            ],
+          },
+        },
+      },
+      {
+        $group: {
+          _id: "$_id",
+          domain: { $first: "$domain" },
+          questions: {
+            $push: {
+              _id: "$questions._id",
+              question: "$questionDetail",
+              answer: "$questions.answer",
+            },
+          },
+          title: { $first: "$title" },
+          description: { $first: "$description" },
+          fullName: { $first: "$fullName" },
+          status: { $first: "$status" },
+          isActive: { $first: "$isActive" },
+          isDeleted: { $first: "$isDeleted" },
+          createdAt: { $first: "$createdAt" },
+          updatedAt: { $first: "$updatedAt" },
         },
       },
     ]);
@@ -220,13 +375,22 @@ class AssessmentService extends BaseService {
 
     if (body.questions && body.questions.length > 0) {
       const questionIds = body.questions.map((q) => this.ObjectId(q.question));
-      const questionsCount = await this.Question.countDocuments({
+      const questions = await this.Question.find({
         _id: { $in: questionIds },
         isDeleted: false,
       });
 
-      if (questionsCount !== questionIds.length)
+      if (questions.length !== questionIds.length)
         throw new CustomError("One or more questions not found", 404);
+
+      // Validate answers based on question type
+      const questionsMap = new Map(questions.map((q) => [q._id.toString(), q]));
+
+      for (const qa of body.questions) {
+        const questionId = this.ObjectId(qa.question).toString();
+        const question = questionsMap.get(questionId);
+        await this.validateAnswer(question, qa.answer);
+      }
     }
 
     const assessment = await this.Assessment({
@@ -297,13 +461,22 @@ class AssessmentService extends BaseService {
     let questionsUpdate;
     if (body.questions) {
       const questionIds = body.questions.map((q) => this.ObjectId(q.question));
-      const questionsCount = await this.Question.countDocuments({
+      const questions = await this.Question.find({
         _id: { $in: questionIds },
         isDeleted: false,
       });
 
-      if (questionsCount !== questionIds.length)
+      if (questions.length !== questionIds.length)
         throw new CustomError("One or more questions not found", 404);
+
+      // Validate answers based on question type
+      const questionsMap = new Map(questions.map((q) => [q._id.toString(), q]));
+
+      for (const qa of body.questions) {
+        const questionId = this.ObjectId(qa.question).toString();
+        const question = questionsMap.get(questionId);
+        await this.validateAnswer(question, qa.answer);
+      }
 
       questionsUpdate = body.questions.map((q) => ({
         question: this.ObjectId(q.question),
@@ -486,9 +659,40 @@ class AssessmentService extends BaseService {
             continue;
           }
 
+          // Parse answer based on question type
+          let parsedAnswer = qa.answer;
+          if (question.type === "checkbox") {
+            // For checkbox, answer can be comma-separated string or array
+            if (typeof qa.answer === "string") {
+              parsedAnswer = qa.answer
+                .split(",")
+                .map((a) => a.trim())
+                .filter((a) => a !== "");
+            } else if (Array.isArray(qa.answer)) {
+              parsedAnswer = qa.answer
+                .map((a) => String(a).trim())
+                .filter((a) => a !== "");
+            }
+          } else if (question.type === "number") {
+            // For number, convert string to number
+            parsedAnswer =
+              typeof qa.answer === "string" ? parseFloat(qa.answer) : qa.answer;
+          }
+
+          // Validate answer
+          try {
+            await this.validateAnswer(question, parsedAnswer);
+          } catch (error) {
+            results.errors.push({
+              title: title,
+              error: `Question "${question.question}": ${error.message}`,
+            });
+            continue;
+          }
+
           questionsData.push({
             question: question._id,
-            answer: qa.answer,
+            answer: parsedAnswer,
           });
         }
 
@@ -503,7 +707,19 @@ class AssessmentService extends BaseService {
         const hasQuestions = questionsData.length > 0;
         const allQuestionsAnswered =
           hasQuestions &&
-          questionsData.every((q) => q.answer && q.answer.trim() !== "");
+          questionsData.every((q) => {
+            if (Array.isArray(q.answer)) {
+              return (
+                q.answer.length > 0 &&
+                q.answer.every((a) => a && String(a).trim() !== "")
+              );
+            }
+            return (
+              q.answer !== undefined &&
+              q.answer !== null &&
+              String(q.answer).trim() !== ""
+            );
+          });
 
         const status =
           hasTitle &&
@@ -575,20 +791,39 @@ class AssessmentService extends BaseService {
       domain: this.ObjectId(domainId),
       isDeleted: false,
       isActive: true,
-    }).select("_id question");
+    }).select("_id question type answers min max");
 
     if (questions.length === 0) {
       throw new CustomError("No active questions found for this domain", 404);
     }
 
-    const templateData = questions.map((q, index) => ({
-      Title: "",
-      Description: "",
-      "Full Name": "",
-      Domain: domain.title,
-      Question: q.question,
-      Answer: "",
-    }));
+    const templateData = questions.map((q, index) => {
+      let answerHint = "";
+      if (q.type === "text") {
+        answerHint = "Enter text";
+      } else if (q.type === "radio") {
+        answerHint = `One of: ${q.answers ? q.answers.join(", ") : "N/A"}`;
+      } else if (q.type === "checkbox") {
+        answerHint = `Comma-separated values from: ${
+          q.answers ? q.answers.join(", ") : "N/A"
+        }`;
+      } else if (q.type === "number") {
+        answerHint = `Number between ${
+          q.min !== undefined ? q.min : "N/A"
+        } and ${q.max !== undefined ? q.max : "N/A"}`;
+      }
+
+      return {
+        Title: "",
+        Description: "",
+        "Full Name": "",
+        Domain: domain.title,
+        Question: q.question,
+        "Question Type": q.type,
+        Answer: "",
+        "Answer Format": answerHint,
+      };
+    });
 
     const workbook = XLSX.utils.book_new();
 
@@ -605,7 +840,18 @@ class AssessmentService extends BaseService {
         `Pre-filled. Domain: ${domain.title}. Do not change this value.`,
       ],
       ["Question", "Pre-filled. Question text. Do not change this value."],
-      ["Answer", "Required. Fill in the answer to each question."],
+      [
+        "Question Type",
+        "Pre-filled. Type of question (text, radio, checkbox, number). Do not change this value.",
+      ],
+      [
+        "Answer Format",
+        "Pre-filled. Format hint for the answer. Reference only, do not change.",
+      ],
+      [
+        "Answer",
+        "Required. Fill in the answer to each question. For checkbox questions, use comma-separated values (e.g., 'Option1, Option2').",
+      ],
       [
         "Description",
         "Required for completed status. Assessment description (same for all rows with same Title).",
@@ -619,7 +865,13 @@ class AssessmentService extends BaseService {
       [
         "1. Fill in the 'Title' column - use the same title for all questions that belong to the same assessment",
       ],
-      ["2. Fill in the 'Answer' column for each question"],
+      [
+        "2. Fill in the 'Answer' column for each question",
+        "   - For text questions: Enter any text",
+        "   - For radio questions: Enter one of the valid options",
+        "   - For checkbox questions: Enter comma-separated values (e.g., 'Option1, Option2')",
+        "   - For number questions: Enter a number within the specified range",
+      ],
       [
         "3. Fill 'Description' and 'Full Name' if you want the assessment to be marked as 'completed'",
       ],
@@ -659,6 +911,12 @@ class AssessmentService extends BaseService {
     const questionsReferenceData = questions.map((q) => ({
       "Question ID": q._id.toString(),
       "Question Text": q.question,
+      "Question Type": q.type,
+      "Valid Options": q.answers
+        ? q.answers.join(", ")
+        : q.type === "number"
+        ? `${q.min || "N/A"} - ${q.max || "N/A"}`
+        : "N/A",
       Domain: domain.title,
     }));
 
