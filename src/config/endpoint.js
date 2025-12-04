@@ -532,7 +532,8 @@ module.exports = {
                 isActive: true,
                 questions: [
                   {
-                    question: "<objectId>",
+                    question: "<string>",
+                    questionRef: "<objectId>",
                     answer: "<string>",
                   },
                 ],
@@ -553,19 +554,23 @@ module.exports = {
                 isActive: true,
                 questions: [
                   {
-                    question: "<objectId>",
+                    question: "<string>",
+                    questionRef: "<objectId>",
                     answer: "Text answer",
                   },
                   {
-                    question: "<objectId>",
+                    question: "<string>",
+                    questionRef: "<objectId>",
                     answer: "Option1",
                   },
                   {
-                    question: "<objectId>",
+                    question: "<string>",
+                    questionRef: "<objectId>",
                     answer: ["Option1", "Option2"],
                   },
                   {
-                    question: "<objectId>",
+                    question: "<string>",
+                    questionRef: "<objectId>",
                     answer: 42,
                   },
                 ],
@@ -597,7 +602,8 @@ module.exports = {
                 isActive: true,
                 questions: [
                   {
-                    question: "<objectId>",
+                    question: "<string>",
+                    questionRef: "<objectId>",
                     answer: "<string>",
                   },
                 ],
@@ -619,19 +625,23 @@ module.exports = {
                 isActive: true,
                 questions: [
                   {
-                    question: "<objectId>",
+                    question: "<string>",
+                    questionRef: "<objectId>",
                     answer: "Text answer",
                   },
                   {
-                    question: "<objectId>",
+                    question: "<string>",
+                    questionRef: "<objectId>",
                     answer: "Option1",
                   },
                   {
-                    question: "<objectId>",
+                    question: "<string>",
+                    questionRef: "<objectId>",
                     answer: ["Option1", "Option2"],
                   },
                   {
-                    question: "<objectId>",
+                    question: "<string>",
+                    questionRef: "<objectId>",
                     answer: 42,
                   },
                 ],
