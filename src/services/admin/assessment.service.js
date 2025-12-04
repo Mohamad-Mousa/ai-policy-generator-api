@@ -267,81 +267,6 @@ class AssessmentService extends BaseService {
       {
         $match: { domain: { $ne: null } },
       },
-      {
-        $unwind: {
-          path: "$questions",
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-      {
-        $lookup: {
-          from: "questions",
-          let: { questionId: "$questions.question" },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $and: [
-                    { $eq: ["$_id", "$$questionId"] },
-                    { $eq: ["$isDeleted", false] },
-                  ],
-                },
-              },
-            },
-            {
-              $project: {
-                _id: 1,
-                question: 1,
-                type: 1,
-                domain: 1,
-                min: 1,
-                max: 1,
-                isActive: 1,
-              },
-            },
-          ],
-          as: "questionDetail",
-        },
-      },
-      {
-        $unwind: {
-          path: "$questionDetail",
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-      {
-        $addFields: {
-          questions: {
-            $mergeObjects: [
-              "$questions",
-              {
-                question: "$questionDetail",
-              },
-            ],
-          },
-        },
-      },
-      {
-        $group: {
-          _id: "$_id",
-          domain: { $first: "$domain" },
-          questions: {
-            $push: {
-              _id: "$questions._id",
-              question: "$questionDetail",
-              answer: "$questions.answer",
-            },
-          },
-          title: { $first: "$title" },
-          description: { $first: "$description" },
-          fullName: { $first: "$fullName" },
-          status: { $first: "$status" },
-          isActive: { $first: "$isActive" },
-          isDeleted: { $first: "$isDeleted" },
-          createdAt: { $first: "$createdAt" },
-          updatedAt: { $first: "$updatedAt" },
-        },
-      },
     ]);
 
     if (!assessment || assessment.length === 0)
@@ -364,8 +289,9 @@ class AssessmentService extends BaseService {
       ]);
     }
 
+    let domain = null;
     if (body.domain) {
-      const domain = await this.Domain.findOne({
+      domain = await this.Domain.findOne({
         _id: this.ObjectId(body.domain),
         isDeleted: false,
       });
@@ -373,35 +299,39 @@ class AssessmentService extends BaseService {
       if (!domain) throw new CustomError("Domain not found", 404);
     }
 
+    let questionsData = [];
     if (body.questions && body.questions.length > 0) {
-      const questionIds = body.questions.map((q) => this.ObjectId(q.question));
-      const questions = await this.Question.find({
-        _id: { $in: questionIds },
-        isDeleted: false,
-      });
-
-      if (questions.length !== questionIds.length)
-        throw new CustomError("One or more questions not found", 404);
-
-      // Validate answers based on question type
-      const questionsMap = new Map(questions.map((q) => [q._id.toString(), q]));
-
       for (const qa of body.questions) {
-        const questionId = this.ObjectId(qa.question).toString();
-        const question = questionsMap.get(questionId);
+        const questionQuery = { isDeleted: false };
+
+        if (this.mongoose.Types.ObjectId.isValid(qa.question)) {
+          questionQuery._id = this.ObjectId(qa.question);
+        } else {
+          questionQuery.question = qa.question;
+          if (domain) {
+            questionQuery.domain = domain._id;
+          }
+        }
+
+        const question = await this.Question.findOne(questionQuery);
+
+        if (!question) {
+          throw new CustomError(`Question not found: ${qa.question}`, 404);
+        }
+
         await this.validateAnswer(question, qa.answer);
+
+        questionsData.push({
+          question: question.question,
+          questionRef: question._id,
+          answer: qa.answer,
+        });
       }
     }
 
     const assessment = await this.Assessment({
       ...(body.domain && { domain: this.ObjectId(body.domain) }),
-      questions:
-        body.questions && body.questions.length > 0
-          ? body.questions.map((q) => ({
-              question: this.ObjectId(q.question),
-              answer: q.answer,
-            }))
-          : [],
+      questions: questionsData,
       title: body.title,
       ...(body.description && { description: body.description }),
       ...(body.fullName && { fullName: body.fullName }),
@@ -421,6 +351,10 @@ class AssessmentService extends BaseService {
     });
 
     if (!assessment) throw new CustomError("Assessment not found", 404);
+
+    if (assessment.status === "completed") {
+      throw new CustomError("Completed assessments cannot be updated", 400);
+    }
 
     const status = body.status !== undefined ? body.status : assessment.status;
 
@@ -449,8 +383,9 @@ class AssessmentService extends BaseService {
       }
     }
 
+    let domain = null;
     if (body.domain) {
-      const domain = await this.Domain.findOne({
+      domain = await this.Domain.findOne({
         _id: this.ObjectId(body.domain),
         isDeleted: false,
       });
@@ -460,28 +395,34 @@ class AssessmentService extends BaseService {
 
     let questionsUpdate;
     if (body.questions) {
-      const questionIds = body.questions.map((q) => this.ObjectId(q.question));
-      const questions = await this.Question.find({
-        _id: { $in: questionIds },
-        isDeleted: false,
-      });
-
-      if (questions.length !== questionIds.length)
-        throw new CustomError("One or more questions not found", 404);
-
-      // Validate answers based on question type
-      const questionsMap = new Map(questions.map((q) => [q._id.toString(), q]));
+      questionsUpdate = [];
 
       for (const qa of body.questions) {
-        const questionId = this.ObjectId(qa.question).toString();
-        const question = questionsMap.get(questionId);
-        await this.validateAnswer(question, qa.answer);
-      }
+        const questionQuery = { isDeleted: false };
 
-      questionsUpdate = body.questions.map((q) => ({
-        question: this.ObjectId(q.question),
-        answer: q.answer,
-      }));
+        if (this.mongoose.Types.ObjectId.isValid(qa.question)) {
+          questionQuery._id = this.ObjectId(qa.question);
+        } else {
+          questionQuery.question = qa.question;
+          if (domain) {
+            questionQuery.domain = domain._id;
+          }
+        }
+
+        const question = await this.Question.findOne(questionQuery);
+
+        if (!question) {
+          throw new CustomError(`Question not found: ${qa.question}`, 404);
+        }
+
+        await this.validateAnswer(question, qa.answer);
+
+        questionsUpdate.push({
+          question: question.question,
+          questionRef: question._id,
+          answer: qa.answer,
+        });
+      }
     }
 
     await this.Assessment.updateOne(
@@ -605,7 +546,6 @@ class AssessmentService extends BaseService {
           if (this.mongoose.Types.ObjectId.isValid(assessmentData.domain)) {
             domainQuery._id = this.ObjectId(assessmentData.domain);
           } else {
-            // Case-insensitive domain lookup
             domainQuery.title = {
               $regex: new RegExp(
                 `^${assessmentData.domain
@@ -659,10 +599,8 @@ class AssessmentService extends BaseService {
             continue;
           }
 
-          // Parse answer based on question type
           let parsedAnswer = qa.answer;
           if (question.type === "checkbox") {
-            // For checkbox, answer can be comma-separated string or array
             if (typeof qa.answer === "string") {
               parsedAnswer = qa.answer
                 .split(",")
@@ -674,12 +612,10 @@ class AssessmentService extends BaseService {
                 .filter((a) => a !== "");
             }
           } else if (question.type === "number") {
-            // For number, convert string to number
             parsedAnswer =
               typeof qa.answer === "string" ? parseFloat(qa.answer) : qa.answer;
           }
 
-          // Validate answer
           try {
             await this.validateAnswer(question, parsedAnswer);
           } catch (error) {
@@ -691,7 +627,7 @@ class AssessmentService extends BaseService {
           }
 
           questionsData.push({
-            question: question._id,
+            question: question.question,
             answer: parsedAnswer,
           });
         }
