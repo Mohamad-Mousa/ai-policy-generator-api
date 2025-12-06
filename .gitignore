@@ -7,3 +7,4 @@ comments.txt
 .DS_Store
 package-lock.json
 postman_collection.json
+/scripts
