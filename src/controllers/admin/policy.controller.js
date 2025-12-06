@@ -39,6 +39,8 @@ class PolicyController {
       );
       ResponseService.success(res, "Success!", policy, 200);
     } catch (error) {
+      console.log(error);
+
       ResponseService.error(res, error.message, 400);
     }
   });

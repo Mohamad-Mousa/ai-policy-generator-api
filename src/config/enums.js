@@ -23,4 +23,5 @@ module.exports = {
     "Long-term (12+ months)",
   ],
   questionTypes: ["text", "radio", "checkbox", "number"],
+  analysisTypes: ["detailed", "quick"],
 };

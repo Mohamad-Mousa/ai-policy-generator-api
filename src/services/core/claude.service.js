@@ -118,8 +118,8 @@ class ClaudeService extends BaseService {
     policy.assessments.forEach((assessment) => {
       if (assessment.questions && Array.isArray(assessment.questions)) {
         assessment.questions.forEach((qa) => {
-          if (qa.question) {
-            questionIds.add(qa.question.toString());
+          if (qa.questionRef) {
+            questionIds.add(qa.questionRef.toString());
           }
         });
       }
@@ -163,7 +163,7 @@ class ClaudeService extends BaseService {
 
         if (assessment.questions && Array.isArray(assessment.questions)) {
           assessment.questions.forEach((qa) => {
-            const questionId = qa.question?.toString();
+            const questionId = qa.questionRef?.toString();
             const question = questionMap.get(questionId);
             if (question) {
               enrichedAssessment.questions.push({
@@ -382,7 +382,7 @@ Respond ONLY with valid JSON. Do not include markdown code blocks or any text ou
     const requestData = {
       model: this.model,
       max_tokens: this.maxTokens,
-      temperature: this.temperature,
+      temperature: useExtendedThinking ? 1 : this.temperature,
       messages: [
         {
           role: "user",

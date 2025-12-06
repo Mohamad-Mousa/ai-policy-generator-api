@@ -699,6 +699,7 @@ module.exports = {
                 organizationSize: "Small (< 50 employees)",
                 riskAppetite: "Conservative",
                 implementationTimeline: "Immediate (0-3 months)",
+                analysisType: "detailed",
               },
               params: [],
             },

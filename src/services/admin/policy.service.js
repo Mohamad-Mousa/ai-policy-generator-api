@@ -2,6 +2,7 @@ const BaseService = require("../core/base.service");
 const StringFormatter = require("../core/string_formatter");
 const CustomError = require("../core/custom_error.service");
 const BodyValidationService = require("../core/body_validation.service");
+const ClaudeService = require("../core/claude.service");
 const enums = require("../../config/enums");
 
 class PolicyService extends BaseService {
@@ -11,6 +12,7 @@ class PolicyService extends BaseService {
     this.Domain = this.models.Domain;
     this.Assessment = this.models.Assessment;
     this.bodyValidationService = BodyValidationService;
+    this.ClaudeService = new ClaudeService();
   }
 
   async findMany(req_query, limit = 10) {
@@ -394,6 +396,7 @@ class PolicyService extends BaseService {
       "organizationSize",
       "riskAppetite",
       "implementationTimeline",
+      "analysisType",
     ]);
 
     this.bodyValidationService.validateFieldTypes(body, {
@@ -403,7 +406,17 @@ class PolicyService extends BaseService {
       organizationSize: "string",
       riskAppetite: "string",
       implementationTimeline: "string",
+      analysisType: "string",
     });
+
+    if (!enums.analysisTypes.includes(body.analysisType)) {
+      throw new CustomError(
+        `Invalid analysisType. Must be one of: ${enums.analysisTypes.join(
+          ", "
+        )}`,
+        400
+      );
+    }
 
     if (!Array.isArray(body.domains) || body.domains.length === 0) {
       throw new CustomError("domains must be a non-empty array", 400);
@@ -542,9 +555,45 @@ class PolicyService extends BaseService {
       organizationSize: body.organizationSize,
       riskAppetite: body.riskAppetite,
       implementationTimeline: body.implementationTimeline,
+      analysisType: body.analysisType,
     }).save();
+    if (!policy) throw new CustomError("Failed to create policy", 500);
 
-    return policy;
+    let analysisResult;
+    if (body.analysisType === "detailed") {
+      analysisResult = await this.ClaudeService.analyzePolicyReadiness(
+        policy._id
+      );
+
+      policy.analysis = analysisResult.analysis;
+      policy.analysisMetadata = {
+        ...analysisResult.metadata,
+        analyzedAt: analysisResult.metadata.analyzedAt
+          ? new Date(analysisResult.metadata.analyzedAt)
+          : new Date(),
+      };
+    } else if (body.analysisType === "quick") {
+      analysisResult = await this.ClaudeService.quickReadinessCheck(policy._id);
+
+      policy.analysis = {
+        overallReadiness: analysisResult.overallReadiness,
+        domainAssessments: analysisResult.domainScores.map((ds) => ({
+          domainId: ds.domainId,
+          domainTitle: ds.domainTitle,
+          readinessScore: ds.readinessScore,
+          priorityLevel: ds.priorityLevel,
+        })),
+        keyFindings: analysisResult.keyFindings || [],
+      };
+      policy.analysisMetadata = {
+        analyzedAt: analysisResult.analyzedAt
+          ? new Date(analysisResult.analyzedAt)
+          : new Date(),
+        analysisStrategy: "quick",
+      };
+    }
+
+    return await policy.save();
   }
 
   async delete(ids) {

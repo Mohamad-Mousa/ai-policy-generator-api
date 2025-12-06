@@ -37,6 +37,178 @@ const policySchema = new mongoose.Schema(
       required: true,
       enum: enums.implementationTimelines,
     },
+    analysisType: {
+      type: String,
+      required: true,
+      enum: enums.analysisTypes,
+    },
+    analysis: {
+      overallReadiness: {
+        score: {
+          type: Number,
+          min: 0,
+          max: 100,
+        },
+        level: {
+          type: String,
+          enum: ["Low", "Medium", "High"],
+        },
+        summary: {
+          type: String,
+        },
+        confidenceLevel: {
+          type: String,
+          enum: ["High", "Medium", "Low"],
+        },
+      },
+      domainAssessments: [
+        {
+          domainId: {
+            type: String,
+          },
+          domainTitle: {
+            type: String,
+          },
+          readinessScore: {
+            type: Number,
+            min: 0,
+            max: 100,
+          },
+          strengths: [
+            {
+              finding: {
+                type: String,
+              },
+              evidence: {
+                type: String,
+              },
+            },
+          ],
+          weaknesses: [
+            {
+              finding: {
+                type: String,
+              },
+              impact: {
+                type: String,
+                enum: ["High", "Medium", "Low"],
+              },
+              evidence: {
+                type: String,
+              },
+            },
+          ],
+          recommendations: [
+            {
+              priority: {
+                type: String,
+                enum: ["High", "Medium", "Low"],
+              },
+              action: {
+                type: String,
+              },
+              timeline: {
+                type: String,
+              },
+              resourcesNeeded: {
+                type: String,
+              },
+              expectedImpact: {
+                type: String,
+              },
+            },
+          ],
+          priorityLevel: {
+            type: String,
+            enum: ["High", "Medium", "Low"],
+          },
+          detailedAnalysis: {
+            type: String,
+          },
+        },
+      ],
+      crossCuttingThemes: [
+        {
+          theme: {
+            type: String,
+          },
+          description: {
+            type: String,
+          },
+          affectedDomains: [
+            {
+              type: String,
+            },
+          ],
+        },
+      ],
+      keyFindings: [
+        {
+          type: String,
+        },
+      ],
+      riskFactors: [
+        {
+          risk: {
+            type: String,
+          },
+          severity: {
+            type: String,
+            enum: ["High", "Medium", "Low"],
+          },
+          mitigationStrategy: {
+            type: String,
+          },
+        },
+      ],
+      nextSteps: [
+        {
+          step: {
+            type: String,
+          },
+          priority: {
+            type: String,
+            enum: ["High", "Medium", "Low"],
+          },
+          owner: {
+            type: String,
+          },
+          timeline: {
+            type: String,
+          },
+        },
+      ],
+    },
+    analysisMetadata: {
+      totalDomains: {
+        type: Number,
+      },
+      totalAssessments: {
+        type: Number,
+      },
+      totalQuestions: {
+        type: Number,
+      },
+      model: {
+        type: String,
+      },
+      tokensUsed: {
+        type: Number,
+      },
+      tokensInput: {
+        type: Number,
+      },
+      thinkingUsed: {
+        type: Boolean,
+      },
+      analysisStrategy: {
+        type: String,
+        enum: ["full-analysis", "domain-by-domain"],
+      },
+      analyzedAt: {
+        type: Date,
+      },
+    },
     isDeleted: {
       type: Boolean,
       default: false,

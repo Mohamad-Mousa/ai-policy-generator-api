@@ -628,6 +628,7 @@ class AssessmentService extends BaseService {
 
           questionsData.push({
             question: question.question,
+            questionRef: question._id,
             answer: parsedAnswer,
           });
         }
@@ -754,6 +755,7 @@ class AssessmentService extends BaseService {
         Description: "",
         "Full Name": "",
         Domain: domain.title,
+        "Question ID": q._id.toString(),
         Question: q.question,
         "Question Type": q.type,
         Answer: "",
@@ -774,6 +776,10 @@ class AssessmentService extends BaseService {
       [
         "Domain",
         `Pre-filled. Domain: ${domain.title}. Do not change this value.`,
+      ],
+      [
+        "Question ID",
+        "Pre-filled. Unique identifier for the question. Optional - you can use this or Question text to identify questions.",
       ],
       ["Question", "Pre-filled. Question text. Do not change this value."],
       [
@@ -813,7 +819,7 @@ class AssessmentService extends BaseService {
       ],
       ["4. You can create multiple assessments by using different titles"],
       [
-        "5. Do NOT change the 'Domain' or 'Question' columns - they are pre-filled correctly",
+        "5. Do NOT change the 'Domain', 'Question ID', or 'Question' columns - they are pre-filled correctly",
       ],
       [""],
       ["Automatic Status Determination:"],
