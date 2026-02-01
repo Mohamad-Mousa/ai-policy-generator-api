@@ -7,7 +7,7 @@ class CountryService extends BaseService {
     this.Country = this.models.Country;
   }
 
-  async findMany(req_query, limit = 50) {
+  async findMany(req_query, limit = 10) {
     if (req_query.limit) limit = Math.min(+(req_query.limit) || limit, 100);
     const regexSearch = req_query.term
       ? StringFormatter.escapeBackslashAndPlus(req_query.term)
