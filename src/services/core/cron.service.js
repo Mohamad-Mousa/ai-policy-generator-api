@@ -1,47 +1,46 @@
 const { CronJob } = require("cron");
 const MongooseLoader = require("../../loaders/mongoose.loader");
+const initiativeSync = require("./initiative_sync.service");
+const logger = require("./logger.service");
 
 class CronService {
-
-    static VerificationToken = MongooseLoader.models.VerificationToken;
-    static Business = MongooseLoader.models.Business;
-    static User = MongooseLoader.models.User;
-
+    /** Existing job (e.g. every minute) - adjust schedule as needed */
     static job = new CronJob(
-        '* * * * * *', // 0 0 * * 0
-        this.onTick.bind(this),
-        null, // onComplete
-        false, // start
-        // 'America/Los_Angeles' // timeZone
+        "* * * * *", // every minute (optional: run other cleanup tasks)
+        () => {},
+        null,
+        false
+    );
+
+    /** Initiative sync: runs daily at midnight; only fetches if API total changed */
+    static initiativeSyncJob = new CronJob(
+        "0 0 * * *", // 0 min, 0 hour = midnight every day
+        this.runInitiativeSync.bind(this),
+        null,
+        false
     );
 
     static startJob() {
         this.job.start();
+        this.initiativeSyncJob.start();
+        logger.info("Cron jobs started (including initiative sync at midnight).");
     }
 
-    static onTick() {
-        this.deletePendingBusinesses();
-        this.deletePendingUsers();
-        this.deleteOldUnavailabilities();
-        this.deleteExpiredVerficationTokens();
-    }
-
-    static deletePendingBusinesses() { // delete old pending registrees
-        var thresholdTime = new Date();
-        thresholdTime.setMinutes(thresholdTime.getDate() - 1);
-        this.Business.deleteMany({isVerified: false, createdAt: { $lt: thresholdTime }})
-    }
-
-    static deletePendingUsers() { // delete old pending registrees
-        var thresholdTime = new Date();
-        thresholdTime.setMinutes(thresholdTime.getDate() - 1);
-        this.User.deleteMany({isVerified: false, createdAt: { $lt: thresholdTime }})
-    }
-
-    static deleteOldUnavailabilities() { // delete past unavailabilities when the business wasn't operating 
-    }
-
-    static deleteExpiredVerficationTokens() { // delete expired tokens from verificationTokens table 
+    static async runInitiativeSync() {
+        try {
+            const Initiative = MongooseLoader.models.Initiative;
+            const InitiativeSyncMeta = MongooseLoader.models.InitiativeSyncMeta;
+            if (!Initiative || !InitiativeSyncMeta) {
+                logger.warn("[InitiativeSync] Models not loaded; skipping.");
+                return;
+            }
+            await initiativeSync.syncIfTotalChanged({
+                Initiative,
+                InitiativeSyncMeta,
+            });
+        } catch (err) {
+            logger.error("[InitiativeSync] Cron run failed:", err);
+        }
     }
 }
 

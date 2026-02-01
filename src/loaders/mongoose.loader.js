@@ -37,6 +37,9 @@ class MongooseLoader {
     this.models.Question = require("../models/question.model");
     this.models.Assessment = require("../models/assessment.model");
     this.models.Policy = require("../models/policy.model");
+    this.models.Initiative = require("../models/initiative.model");
+    this.models.InitiativeSyncMeta = require("../models/initiative_sync_meta.model");
+    this.models.Country = require("../models/country.model");
   }
 
   static connect() {

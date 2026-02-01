@@ -6,7 +6,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node src/index.js",
-    "dev": "nodemon -r dotenv/config src/index.js --ignore postman_collection.json"
+    "dev": "nodemon -r dotenv/config src/index.js --ignore postman_collection.json",
+    "sync-initiatives": "node -r dotenv/config scripts/sync-initiatives-initial.js"
   },
   "author": "",
   "license": "ISC",

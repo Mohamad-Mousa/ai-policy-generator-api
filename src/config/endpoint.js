@@ -712,6 +712,52 @@ module.exports = {
           ],
         },
         {
+          folder: "Initiatives",
+          auth: null,
+          items: [
+            {
+              name: "Find Many",
+              method: "GET",
+              url: "{{local}}/admin/initiative",
+              params: [
+                { key: "page", value: "1", type: "query" },
+                { key: "limit", value: "20", type: "query" },
+                { key: "term", value: "", type: "query" },
+                { key: "status", value: "", type: "query" },
+                { key: "category", value: "", type: "query" },
+                { key: "gaiinCountryId", value: "", type: "query" },
+                { key: "sortBy", value: "createdAt", type: "query" },
+                { key: "sortDirection", value: "desc", type: "query" },
+              ],
+            },
+            {
+              name: "Find One",
+              method: "GET",
+              url: "{{local}}/admin/initiative/:id",
+              params: [],
+            },
+          ],
+        },
+        {
+          folder: "Countries",
+          auth: null,
+          items: [
+            {
+              name: "Find Many",
+              method: "GET",
+              url: "{{local}}/admin/country",
+              params: [
+                { key: "page", value: "1", type: "query" },
+                { key: "limit", value: "50", type: "query" },
+                { key: "term", value: "", type: "query" },
+                { key: "value", value: "", type: "query" },
+                { key: "sortBy", value: "label", type: "query" },
+                { key: "sortDirection", value: "asc", type: "query" },
+              ],
+            },
+          ],
+        },
+        {
           folder: "Settings",
           auth: null,
           items: [

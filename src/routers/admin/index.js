@@ -11,6 +11,8 @@ const SettingRouter = require("./setting.router");
 const QuestionRouter = require("./question.router");
 const AssessmentRouter = require("./assessment.router");
 const PolicyRouter = require("./policy.router");
+const InitiativeRouter = require("./initiative.router");
+const CountryRouter = require("./country.router");
 
 class AdminRouters {
   constructor() {
@@ -33,6 +35,8 @@ class AdminRouters {
     new QuestionRouter().configureRoutes(router);
     new AssessmentRouter().configureRoutes(router);
     new PolicyRouter().configureRoutes(router);
+    new InitiativeRouter().configureRoutes(router);
+    new CountryRouter().configureRoutes(router);
 
     app.use("/admin", router);
   }

@@ -8,4 +8,6 @@ module.exports = {
   questions: "questions",
   assessments: "assessments",
   policies: "policies",
+  initiatives: "initiatives",
+  countries: "countries",
 };
