@@ -13,6 +13,10 @@ const AssessmentRouter = require("./assessment.router");
 const PolicyRouter = require("./policy.router");
 const InitiativeRouter = require("./initiative.router");
 const CountryRouter = require("./country.router");
+const IntergovernmentalOrganisationRouter = require("./intergovernmental_organisation.router");
+const InitiativeTypeRouter = require("./initiative_type.router");
+const AiPrincipleRouter = require("./ai_principle.router");
+const AiTagRouter = require("./ai_tag.router");
 
 class AdminRouters {
   constructor() {
@@ -37,6 +41,10 @@ class AdminRouters {
     new PolicyRouter().configureRoutes(router);
     new InitiativeRouter().configureRoutes(router);
     new CountryRouter().configureRoutes(router);
+    new IntergovernmentalOrganisationRouter().configureRoutes(router);
+    new InitiativeTypeRouter().configureRoutes(router);
+    new AiPrincipleRouter().configureRoutes(router);
+    new AiTagRouter().configureRoutes(router);
 
     app.use("/admin", router);
   }

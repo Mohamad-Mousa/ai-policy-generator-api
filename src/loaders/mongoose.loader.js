@@ -40,6 +40,10 @@ class MongooseLoader {
     this.models.Initiative = require("../models/initiative.model");
     this.models.InitiativeSyncMeta = require("../models/initiative_sync_meta.model");
     this.models.Country = require("../models/country.model");
+    this.models.IntergovernmentalOrganisation = require("../models/intergovernmental_organisation.model");
+    this.models.InitiativeType = require("../models/initiative_type.model");
+    this.models.AiPrinciple = require("../models/ai_principle.model");
+    this.models.AiTag = require("../models/ai_tag.model");
   }
 
   static connect() {

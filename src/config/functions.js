@@ -10,4 +10,8 @@ module.exports = {
   policies: "policies",
   initiatives: "initiatives",
   countries: "countries",
+  intergovernmentalOrganisations: "intergovernmentalOrganisations",
+  initiativeTypes: "initiativeTypes",
+  aiPrinciples: "aiPrinciples",
+  aiTags: "aiTags",
 };

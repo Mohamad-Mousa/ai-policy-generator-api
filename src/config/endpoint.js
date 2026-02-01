@@ -725,7 +725,12 @@ module.exports = {
                 { key: "term", value: "", type: "query" },
                 { key: "status", value: "", type: "query" },
                 { key: "category", value: "", type: "query" },
+                { key: "startYear", value: "", type: "query" },
                 { key: "gaiinCountryId", value: "", type: "query" },
+                { key: "intergovernmentalOrganisationId", value: "", type: "query" },
+                { key: "initiativeTypeId", value: "", type: "query" },
+                { key: "aiPrincipleId", value: "", type: "query" },
+                { key: "aiTagId", value: "", type: "query" },
                 { key: "sortBy", value: "createdAt", type: "query" },
                 { key: "sortDirection", value: "desc", type: "query" },
               ],
@@ -746,6 +751,83 @@ module.exports = {
               name: "Find Many",
               method: "GET",
               url: "{{local}}/admin/country",
+              params: [
+                { key: "page", value: "1", type: "query" },
+                { key: "limit", value: "50", type: "query" },
+                { key: "term", value: "", type: "query" },
+                { key: "value", value: "", type: "query" },
+                { key: "sortBy", value: "label", type: "query" },
+                { key: "sortDirection", value: "asc", type: "query" },
+              ],
+            },
+          ],
+        },
+        {
+          folder: "Intergovernmental Organisations",
+          auth: null,
+          items: [
+            {
+              name: "Find Many",
+              method: "GET",
+              url: "{{local}}/admin/intergovernmental-organisation",
+              params: [
+                { key: "page", value: "1", type: "query" },
+                { key: "limit", value: "50", type: "query" },
+                { key: "term", value: "", type: "query" },
+                { key: "value", value: "", type: "query" },
+                { key: "sortBy", value: "label", type: "query" },
+                { key: "sortDirection", value: "asc", type: "query" },
+              ],
+            },
+          ],
+        },
+        {
+          folder: "Initiative Types",
+          auth: null,
+          items: [
+            {
+              name: "Find Many",
+              method: "GET",
+              url: "{{local}}/admin/initiative-type",
+              params: [
+                { key: "page", value: "1", type: "query" },
+                { key: "limit", value: "50", type: "query" },
+                { key: "term", value: "", type: "query" },
+                { key: "value", value: "", type: "query" },
+                { key: "sortBy", value: "label", type: "query" },
+                { key: "sortDirection", value: "asc", type: "query" },
+              ],
+            },
+          ],
+        },
+        {
+          folder: "AI Principles",
+          auth: null,
+          items: [
+            {
+              name: "Find Many",
+              method: "GET",
+              url: "{{local}}/admin/ai-principle",
+              params: [
+                { key: "page", value: "1", type: "query" },
+                { key: "limit", value: "50", type: "query" },
+                { key: "term", value: "", type: "query" },
+                { key: "value", value: "", type: "query" },
+                { key: "subLabel", value: "", type: "query" },
+                { key: "sortBy", value: "value", type: "query" },
+                { key: "sortDirection", value: "asc", type: "query" },
+              ],
+            },
+          ],
+        },
+        {
+          folder: "AI Tags",
+          auth: null,
+          items: [
+            {
+              name: "Find Many",
+              method: "GET",
+              url: "{{local}}/admin/ai-tag",
               params: [
                 { key: "page", value: "1", type: "query" },
                 { key: "limit", value: "50", type: "query" },
