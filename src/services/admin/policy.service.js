@@ -589,7 +589,6 @@ class PolicyService extends BaseService {
         analyzedAt: analysisResult.analyzedAt
           ? new Date(analysisResult.analyzedAt)
           : new Date(),
-        analysisStrategy: "quick",
       };
     }
 

@@ -727,7 +727,11 @@ module.exports = {
                 { key: "category", value: "", type: "query" },
                 { key: "startYear", value: "", type: "query" },
                 { key: "gaiinCountryId", value: "", type: "query" },
-                { key: "intergovernmentalOrganisationId", value: "", type: "query" },
+                {
+                  key: "intergovernmentalOrganisationId",
+                  value: "",
+                  type: "query",
+                },
                 { key: "initiativeTypeId", value: "", type: "query" },
                 { key: "aiPrincipleId", value: "", type: "query" },
                 { key: "aiTagId", value: "", type: "query" },
