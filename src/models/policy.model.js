@@ -10,6 +10,12 @@ const policySchema = new mongoose.Schema(
         required: true,
       },
     ],
+    source: {
+      type: String,
+      required: true,
+      enum: ["assessment", "initiative"],
+      default: "assessment",
+    },
     assessments: [
       {
         type: ObjectId,
