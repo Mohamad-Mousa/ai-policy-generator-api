@@ -11,6 +11,7 @@ class PolicyService extends BaseService {
     this.Policy = this.models.Policy;
     this.Domain = this.models.Domain;
     this.Assessment = this.models.Assessment;
+    this.Initiative = this.models.Initiative;
     this.bodyValidationService = BodyValidationService;
     this.ClaudeService = new ClaudeService();
   }
@@ -52,6 +53,16 @@ class PolicyService extends BaseService {
                 .map((id) => this.ObjectId(id.trim())),
             }
           : this.ObjectId(req_query.assessment),
+      }),
+      ...(req_query.source && { source: req_query.source }),
+      ...(req_query.initiative && {
+        initiatives: req_query.initiative.includes(",")
+          ? {
+              $in: req_query.initiative
+                .split(",")
+                .map((id) => this.ObjectId(id.trim())),
+            }
+          : this.ObjectId(req_query.initiative),
       }),
     };
 
@@ -145,6 +156,38 @@ class PolicyService extends BaseService {
           as: "assessments",
         },
       },
+      {
+        $lookup: {
+          from: "initiatives",
+          let: { initiativeIds: { $ifNull: ["$initiatives", []] } },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $isArray: "$$initiativeIds" },
+                    { $gt: [{ $size: "$$initiativeIds" }, 0] },
+                    { $in: ["$_id", "$$initiativeIds"] },
+                  ],
+                },
+              },
+            },
+            {
+              $project: {
+                _id: 1,
+                englishName: 1,
+                originalName: 1,
+                slug: 1,
+                description: 1,
+                overview: 1,
+                category: 1,
+                status: 1,
+              },
+            },
+          ],
+          as: "initiatives",
+        },
+      },
       ...termStage,
       ...pipes,
       {
@@ -183,7 +226,7 @@ class PolicyService extends BaseService {
       },
       {
         $addFields: {
-          originalAssessmentIds: "$assessments",
+          originalAssessmentIds: { $ifNull: ["$assessments", []] },
         },
       },
       {
@@ -357,6 +400,44 @@ class PolicyService extends BaseService {
         },
       },
       {
+        $lookup: {
+          from: "initiatives",
+          let: { initiativeIds: "$initiatives" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $cond: {
+                    if: { $isArray: "$$initiativeIds" },
+                    then: { $in: ["$_id", "$$initiativeIds"] },
+                    else: false,
+                  },
+                },
+              },
+            },
+            {
+              $project: {
+                _id: 1,
+                englishName: 1,
+                originalName: 1,
+                slug: 1,
+                description: 1,
+                overview: 1,
+                actionPlan: 1,
+                category: 1,
+                status: 1,
+                responsibleOrganisation: 1,
+                startYear: 1,
+                endYear: 1,
+                targetSectors: 1,
+                principles: 1,
+              },
+            },
+          ],
+          as: "initiatives",
+        },
+      },
+      {
         $project: {
           originalAssessmentIds: 0,
         },
@@ -389,6 +470,126 @@ class PolicyService extends BaseService {
   }
 
   async create(body) {
+    const source = body.source || "assessment";
+    if (!["assessment", "initiative"].includes(source)) {
+      throw new CustomError(
+        'Invalid source. Must be "assessment" or "initiative"',
+        400
+      );
+    }
+
+    this.bodyValidationService.validateRequiredFields(body, ["analysisType"]);
+    this.bodyValidationService.validateFieldTypes(body, {
+      analysisType: "string",
+    });
+
+    if (!enums.analysisTypes.includes(body.analysisType)) {
+      throw new CustomError(
+        `Invalid analysisType. Must be one of: ${enums.analysisTypes.join(
+          ", "
+        )}`,
+        400
+      );
+    }
+
+    if (source === "initiative") {
+      return this._createFromInitiatives(body);
+    }
+
+    return this._createFromAssessments(body);
+  }
+
+  /**
+   * Create policy from initiatives: only initiatives + analysisType required.
+   * No domains, assessments, sector, organizationSize, riskAppetite, implementationTimeline.
+   */
+  async _createFromInitiatives(body) {
+    this.bodyValidationService.validateRequiredFields(body, [
+      "initiatives",
+      "analysisType",
+    ]);
+    this.bodyValidationService.validateFieldTypes(body, {
+      initiatives: "array",
+      analysisType: "string",
+    });
+
+    if (!Array.isArray(body.initiatives) || body.initiatives.length === 0) {
+      throw new CustomError("initiatives must be a non-empty array", 400);
+    }
+
+    const initiativeIds = body.initiatives.map((id) => {
+      if (!this.mongoose.Types.ObjectId.isValid(id)) {
+        throw new CustomError(`Invalid initiative ID: ${id}`, 400);
+      }
+      return this.ObjectId(id);
+    });
+
+    const validInitiatives = await this.Initiative.find({
+      _id: { $in: initiativeIds },
+    }).select("_id");
+
+    if (validInitiatives.length !== initiativeIds.length) {
+      const foundIds = new Set(
+        validInitiatives.map((i) => i._id.toString())
+      );
+      const missing = initiativeIds.filter(
+        (id) => !foundIds.has(id.toString())
+      );
+      throw new CustomError(
+        `One or more initiatives not found: ${missing
+          .map((id) => id.toString())
+          .join(", ")}`,
+        404
+      );
+    }
+
+    const policy = await this.Policy({
+      source: "initiative",
+      initiatives: initiativeIds,
+      analysisType: body.analysisType,
+    }).save();
+    if (!policy) throw new CustomError("Failed to create policy", 500);
+
+    let analysisResult;
+    if (body.analysisType === "detailed") {
+      analysisResult = await this.ClaudeService.analyzeInitiativeReadiness(
+        policy._id
+      );
+      policy.analysis = analysisResult.analysis;
+      policy.analysisMetadata = {
+        ...analysisResult.metadata,
+        analyzedAt: analysisResult.metadata.analyzedAt
+          ? new Date(analysisResult.metadata.analyzedAt)
+          : new Date(),
+      };
+    } else {
+      analysisResult =
+        await this.ClaudeService.quickInitiativeReadinessCheck(policy._id);
+      policy.analysis = {
+        overallReadiness: analysisResult.overallReadiness,
+        domainAssessments: (analysisResult.domainScores || []).map((ds) => ({
+          domainId: ds.domainId,
+          domainTitle: ds.domainTitle,
+          readinessScore: ds.readinessScore,
+          priorityLevel: ds.priorityLevel,
+        })),
+        keyFindings: analysisResult.keyFindings || [],
+      };
+      policy.analysisMetadata = {
+        analyzedAt: analysisResult.analyzedAt
+          ? new Date(analysisResult.analyzedAt)
+          : new Date(),
+      };
+    }
+
+    return await policy.save();
+  }
+
+  /**
+   * Create policy from assessments: requires domains, assessments, sector,
+   * organizationSize, riskAppetite, implementationTimeline, analysisType.
+   */
+  async _createFromAssessments(body) {
     this.bodyValidationService.validateRequiredFields(body, [
       "domains",
       "assessments",
@@ -408,15 +609,6 @@ class PolicyService extends BaseService {
       implementationTimeline: "string",
       analysisType: "string",
     });
-
-    if (!enums.analysisTypes.includes(body.analysisType)) {
-      throw new CustomError(
-        `Invalid analysisType. Must be one of: ${enums.analysisTypes.join(
-          ", "
-        )}`,
-        400
-      );
-    }
 
     if (!Array.isArray(body.domains) || body.domains.length === 0) {
       throw new CustomError("domains must be a non-empty array", 400);
@@ -549,6 +741,7 @@ class PolicyService extends BaseService {
     }
 
     const policy = await this.Policy({
+      source: "assessment",
       domains: domainIds,
       assessments: assessmentIds,
       sector: body.sector,

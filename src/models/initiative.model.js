@@ -73,7 +73,7 @@ const initiativeSchema = new mongoose.Schema(
     isDeletable: Boolean,
     isEditorialStatusUpdatable: Boolean,
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 initiativeSchema.index({ slug: 1 }, { unique: true, sparse: true });
@@ -84,7 +84,7 @@ initiativeSchema.index({ createdAt: -1 });
 initiativeSchema.index({ englishName: 1 });
 initiativeSchema.index(
   { englishName: "text", description: "text", overview: "text", slug: "text" },
-  { name: "initiative_text_search" }
+  { name: "initiative_text_search" },
 );
 
 const Initiative = mongoose.model("Initiative", initiativeSchema);

@@ -10,7 +10,7 @@ class InitiativeService extends BaseService {
   }
 
   async findMany(req_query, limit = 10) {
-    if (req_query.limit) limit = Math.min(+(req_query.limit) || limit, 100);
+    if (req_query.limit) limit = Math.min(+req_query.limit || limit, 100);
     const regexSearch = req_query.term
       ? StringFormatter.escapeBackslashAndPlus(req_query.term)
       : "";
@@ -18,23 +18,47 @@ class InitiativeService extends BaseService {
     const match = {};
     if (req_query.status) match.status = req_query.status;
     if (req_query.category) match.category = req_query.category;
-    if (req_query.gaiinCountryId) match.gaiinCountryId = +(req_query.gaiinCountryId);
-    if (req_query.startYear) match.startYear = +(req_query.startYear);
-    if (req_query.intergovernmentalOrganisationId) match.intergovernmentalOrganisationId = +(req_query.intergovernmentalOrganisationId);
-    const initiativeTypeId = req_query.initiativeTypeId != null && req_query.initiativeTypeId !== "" ? +(req_query.initiativeTypeId) : null;
-    const aiPrincipleId = req_query.aiPrincipleId != null && req_query.aiPrincipleId !== "" ? +(req_query.aiPrincipleId) : null;
-    const aiTagId = req_query.aiTagId != null && req_query.aiTagId !== "" ? +(req_query.aiTagId) : null;
+    if (req_query.gaiinCountryId)
+      match.gaiinCountryId = +req_query.gaiinCountryId;
+    if (req_query.startYear) match.startYear = +req_query.startYear;
+    if (req_query.intergovernmentalOrganisationId)
+      match.intergovernmentalOrganisationId =
+        +req_query.intergovernmentalOrganisationId;
+    const initiativeTypeId =
+      req_query.initiativeTypeId != null && req_query.initiativeTypeId !== ""
+        ? +req_query.initiativeTypeId
+        : null;
+    const aiPrincipleId =
+      req_query.aiPrincipleId != null && req_query.aiPrincipleId !== ""
+        ? +req_query.aiPrincipleId
+        : null;
+    const aiTagId =
+      req_query.aiTagId != null && req_query.aiTagId !== ""
+        ? +req_query.aiTagId
+        : null;
     if (initiativeTypeId != null) {
       match.$and = match.$and || [];
-      match.$and.push({ $or: [ { "initiativeType.id": initiativeTypeId }, { "initiativeType.value": initiativeTypeId } ] });
+      match.$and.push({
+        $or: [
+          { "initiativeType.id": initiativeTypeId },
+          { "initiativeType.value": initiativeTypeId },
+        ],
+      });
     }
     if (aiPrincipleId != null) {
       match.$and = match.$and || [];
-      match.$and.push({ $or: [ { "principles.id": aiPrincipleId }, { "principles.value": aiPrincipleId } ] });
+      match.$and.push({
+        $or: [
+          { "principles.id": aiPrincipleId },
+          { "principles.value": aiPrincipleId },
+        ],
+      });
     }
     if (aiTagId != null) {
       match.$and = match.$and || [];
-      match.$and.push({ $or: [ { "tags.id": aiTagId }, { "tags.value": aiTagId } ] });
+      match.$and.push({
+        $or: [{ "tags.id": aiTagId }, { "tags.value": aiTagId }],
+      });
     }
 
     if (req_query.term && regexSearch) {
