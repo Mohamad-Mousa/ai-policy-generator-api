@@ -9,6 +9,7 @@ const logger = require("../services/core/logger.service");
 const config = require("../config");
 const { rateLimit } = require("express-rate-limit");
 const PostmanService = require("../services/core/postman.service");
+const CronService = require("../services/core/cron.service");
 
 class ExpressLoader {
   constructor() {
@@ -32,7 +33,7 @@ class ExpressLoader {
         ],
         methods: ["GET", "POST", "PUT", "DELETE"],
         credentials: true,
-      })
+      }),
     );
 
     const limiter = rateLimit({
@@ -56,7 +57,7 @@ class ExpressLoader {
       express.urlencoded({
         extended: false,
         limit: "20mb",
-      })
+      }),
     );
     app.use(express.json({ limit: "20mb" }));
 
@@ -85,6 +86,7 @@ class ExpressLoader {
       }
     });
     // new SocketLoader(this.server);
+    CronService.startJob();
   }
 
   get Server() {

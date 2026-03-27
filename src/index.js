@@ -10,9 +10,6 @@ MongooseLoader.connect()
 
     const ExpressLoader = require("./loaders/express.loader");
     new ExpressLoader();
-
-    const CronService = require("./services/core/cron.service");
-    CronService.startJob();
   })
   .catch((err) => {
     logger.error(err);
