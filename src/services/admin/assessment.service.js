@@ -21,6 +21,45 @@ class AssessmentService extends BaseService {
     this.bodyValidationService = BodyValidationService;
   }
 
+  /**
+   * Recomputes domain scoreAvg / scorePercentage as the mean of non-deleted
+   * assessments for that domain (Mongo $avg skips nulls per field).
+   */
+  async syncDomainAssessmentScores(domainId) {
+    if (domainId == null || domainId === "") return;
+    const id = this.ObjectId(domainId.toString());
+
+    const [row] = await this.Assessment.aggregate([
+      {
+        $match: {
+          domain: id,
+          isDeleted: false,
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          scoreAvg: { $avg: "$scoreAvg" },
+          scorePercentage: { $avg: "$scorePercentage" },
+        },
+      },
+    ]);
+
+    const scoreAvg =
+      row && row.scoreAvg != null
+        ? Math.round(Number(row.scoreAvg) * 100) / 100
+        : null;
+    const scorePercentage =
+      row && row.scorePercentage != null
+        ? Math.round(Number(row.scorePercentage) * 100) / 100
+        : null;
+
+    await this.Domain.updateOne(
+      { _id: id, isDeleted: false },
+      { $set: { scoreAvg, scorePercentage } },
+    );
+  }
+
   async validateAnswer(question, answer) {
     if (!question) {
       throw new CustomError("Question not found", 404);
@@ -198,6 +237,11 @@ class AssessmentService extends BaseService {
                   { description: { $regex: new RegExp(regexSearch, "i") } },
                   { fullName: { $regex: new RegExp(regexSearch, "i") } },
                   { "domain.title": { $regex: new RegExp(regexSearch, "i") } },
+                  {
+                    "domain.predefinedAssessmentTitle": {
+                      $regex: new RegExp(regexSearch, "i"),
+                    },
+                  },
                 ],
               },
             },
@@ -226,6 +270,7 @@ class AssessmentService extends BaseService {
               $project: {
                 _id: 1,
                 title: 1,
+                predefinedAssessmentTitle: 1,
               },
             },
           ],
@@ -285,6 +330,7 @@ class AssessmentService extends BaseService {
                 icon: 1,
                 subDomains: 1,
                 isActive: 1,
+                predefinedAssessmentTitle: 1,
               },
             },
           ],
@@ -385,6 +431,10 @@ class AssessmentService extends BaseService {
         isActive: body.isActive === "true" ? true : false,
       }),
     }).save();
+
+    if (assessment.domain) {
+      await this.syncDomainAssessmentScores(assessment.domain);
+    }
 
     return assessment;
   }
@@ -504,15 +554,45 @@ class AssessmentService extends BaseService {
       },
     );
 
-    return await this.Assessment.findOne({ _id: body._id });
+    const updated = await this.Assessment.findOne({ _id: body._id });
+    const domainIds = new Set();
+    if (assessment.domain) domainIds.add(assessment.domain.toString());
+    if (updated && updated.domain) domainIds.add(updated.domain.toString());
+    for (const d of domainIds) {
+      await this.syncDomainAssessmentScores(d);
+    }
+
+    return updated;
   }
 
   async delete(ids) {
-    ids = ids.split(",");
-    await this.Assessment.updateMany(
-      { _id: { $in: ids } },
-      { isDeleted: true },
-    );
+    const idList = ids
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const objectIds = idList
+      .filter((id) => this.mongoose.Types.ObjectId.isValid(id))
+      .map((id) => this.ObjectId(id));
+
+    const domainIds = new Set();
+    if (objectIds.length > 0) {
+      const toRemove = await this.Assessment.find({
+        _id: { $in: objectIds },
+        isDeleted: false,
+      })
+        .select("domain")
+        .lean();
+      for (const a of toRemove) {
+        if (a.domain) domainIds.add(String(a.domain));
+      }
+      await this.Assessment.updateMany(
+        { _id: { $in: objectIds } },
+        { isDeleted: true },
+      );
+    }
+    for (const d of domainIds) {
+      await this.syncDomainAssessmentScores(d);
+    }
   }
 
   async import(file) {
@@ -762,6 +842,10 @@ class AssessmentService extends BaseService {
           status: status,
           isActive: true,
         }).save();
+
+        if (domain) {
+          await this.syncDomainAssessmentScores(domain._id);
+        }
 
         results.success.push({
           title: title,

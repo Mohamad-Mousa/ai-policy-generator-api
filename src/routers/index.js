@@ -1,5 +1,6 @@
 let express = require("express");
 const AdminRouters = require("./admin");
+const PublicRouters = require("./public");
 const ResponseService = require("../services/core/response.service");
 const config = require("../config");
 
@@ -14,11 +15,11 @@ class ApiRouter {
       }
       res.setHeader(
         "Access-Control-Allow-Methods",
-        "GET, POST, OPTIONS, PUT, PATCH, DELETE"
+        "GET, POST, OPTIONS, PUT, PATCH, DELETE",
       );
       res.setHeader(
         "Access-Control-Allow-Headers",
-        "X-Requested-With, content-type, x-access-token, authorization"
+        "X-Requested-With, content-type, x-access-token, authorization",
       );
       res.setHeader("Access-Control-Allow-Credentials", true);
       res.removeHeader("X-Powered-By");
@@ -34,6 +35,7 @@ class ApiRouter {
     });
 
     new AdminRouters().configureRoutes(router);
+    new PublicRouters().configureRoutes(router);
 
     app.use("/api/v1", router);
   }

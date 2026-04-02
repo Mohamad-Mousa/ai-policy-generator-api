@@ -9,12 +9,6 @@ const policySchema = new mongoose.Schema(
         ref: "Domain",
       },
     ],
-    source: {
-      type: String,
-      required: true,
-      enum: ["assessment", "initiative"],
-      default: "assessment",
-    },
     assessments: [
       {
         type: ObjectId,
@@ -254,6 +248,7 @@ policySchema.index({ isDeleted: 1, riskAppetite: 1, createdAt: -1 });
 policySchema.index({ isDeleted: 1, implementationTimeline: 1, createdAt: -1 });
 policySchema.index({ isDeleted: 1, domains: 1, createdAt: -1 });
 policySchema.index({ isDeleted: 1, assessments: 1, createdAt: -1 });
+policySchema.index({ isDeleted: 1, initiatives: 1, createdAt: -1 });
 policySchema.index({ _id: 1, isDeleted: 1 });
 policySchema.index({ sector: 1, organizationSize: 1, riskAppetite: 1 });
 policySchema.index({ createdAt: -1, sector: 1 });

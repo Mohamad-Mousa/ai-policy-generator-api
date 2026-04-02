@@ -136,6 +136,7 @@ const SUBDOMAIN_LOOKUP_PIPELINE = [
                   icon: 1,
                   subDomains: 1,
                   isActive: 1,
+                  predefinedAssessmentTitle: 1,
                 },
               },
             ],

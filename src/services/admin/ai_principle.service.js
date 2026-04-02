@@ -8,16 +8,21 @@ class AiPrincipleService extends BaseService {
   }
 
   async findMany(req_query, limit = 10) {
-    if (req_query.limit) limit = Math.min(+(req_query.limit) || limit, 100);
+    if (req_query.limit) limit = Math.min(+req_query.limit || limit, 100);
     const regexSearch = req_query.term
       ? StringFormatter.escapeBackslashAndPlus(req_query.term)
       : "";
 
     const match = {};
     if (req_query.value != null && req_query.value !== "")
-      match.value = +(req_query.value);
+      match.value = +req_query.value;
     if (req_query.subLabel != null && req_query.subLabel !== "")
-      match.subLabel = { $regex: new RegExp(StringFormatter.escapeBackslashAndPlus(req_query.subLabel), "i") };
+      match.subLabel = {
+        $regex: new RegExp(
+          StringFormatter.escapeBackslashAndPlus(req_query.subLabel),
+          "i",
+        ),
+      };
     if (req_query.term && regexSearch) {
       match.$or = [
         { label: { $regex: new RegExp(regexSearch, "i") } },

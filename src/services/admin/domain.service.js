@@ -21,6 +21,7 @@ class DomainService extends BaseService {
         $or: [
           { title: { $regex: new RegExp(regexSearch, "i") } },
           { description: { $regex: new RegExp(regexSearch, "i") } },
+          { predefinedAssessmentTitle: { $regex: new RegExp(regexSearch, "i") } },
           { subDomains: { $regex: new RegExp(regexSearch, "i") } },
         ],
       }),
@@ -108,6 +109,13 @@ class DomainService extends BaseService {
     const domain = await this.Domain({
       title: body.title,
       description: body.description,
+      ...(body.predefinedAssessmentTitle !== undefined && {
+        predefinedAssessmentTitle:
+          body.predefinedAssessmentTitle == null ||
+          body.predefinedAssessmentTitle === ""
+            ? undefined
+            : String(body.predefinedAssessmentTitle).trim(),
+      }),
       ...(body.subDomains &&
         body.subDomains.length > 0 && { subDomains: body.subDomains }),
       ...(body.icon && { icon: body.icon }),
@@ -132,6 +140,13 @@ class DomainService extends BaseService {
       {
         ...(body.title && { title: body.title }),
         ...(body.description && { description: body.description }),
+        ...(body.predefinedAssessmentTitle !== undefined && {
+          predefinedAssessmentTitle:
+            body.predefinedAssessmentTitle == null ||
+            body.predefinedAssessmentTitle === ""
+              ? null
+              : String(body.predefinedAssessmentTitle).trim(),
+        }),
         ...(body.icon !== undefined && { icon: body.icon }),
         ...(body.isActive !== undefined && {
           isActive: body.isActive == "true" ? true : false,

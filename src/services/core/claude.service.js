@@ -42,7 +42,6 @@ class ClaudeService extends BaseService {
     this.Assessment = this.models.Assessment;
     this.Domain = this.models.Domain;
     this.Question = this.models.Question;
-    this.Initiative = this.models.Initiative;
     this.apiKey = config.claude.apiKey;
     this.apiUrl = config.claude.apiUrl;
     this.model = config.claude.model || "claude-sonnet-4-20250514";
@@ -87,11 +86,16 @@ class ClaudeService extends BaseService {
     const policy = await this.Policy.findOne({
       _id: this.ObjectId(policyId),
       isDeleted: false,
+      country: { $exists: true, $ne: null },
     })
+      .populate({
+        path: "country",
+        select: "_id label value",
+      })
       .populate({
         path: "domains",
         match: { isDeleted: false, isActive: true },
-        select: "_id title description subDomains",
+        select: "_id title description subDomains predefinedAssessmentTitle",
       })
       .populate({
         path: "assessments",
@@ -99,14 +103,24 @@ class ClaudeService extends BaseService {
         select:
           "_id title description fullName status domain questions scoreAvg scorePercentage",
       })
+      .populate({
+        path: "initiatives",
+        select:
+          "englishName originalName slug description overview actionPlan category status responsibleOrganisation startYear endYear targetSectors principles evaluationDescription monitoringMechanismDescription",
+      })
       .lean();
 
     if (!policy) {
       throw new CustomError("Policy not found", 404);
     }
 
+    if (!policy.country) {
+      throw new CustomError("Policy must have a valid country", 400);
+    }
+
     policy.domains = policy.domains.filter((d) => d !== null);
     policy.assessments = policy.assessments.filter((a) => a !== null);
+    const linkedInitiatives = (policy.initiatives || []).filter((i) => i !== null);
 
     if (policy.domains.length === 0) {
       throw new CustomError("Policy has no valid domains", 400);
@@ -147,6 +161,7 @@ class ClaudeService extends BaseService {
         title: domain.title,
         description: domain.description,
         subDomains: domain.subDomains || [],
+        predefinedAssessmentTitle: domain.predefinedAssessmentTitle,
         assessments: [],
       });
     });
@@ -160,6 +175,8 @@ class ClaudeService extends BaseService {
           description: assessment.description,
           fullName: assessment.fullName,
           status: assessment.status,
+          scoreAvg: assessment.scoreAvg ?? null,
+          scorePercentage: assessment.scorePercentage ?? null,
           questions: [],
         };
 
@@ -183,217 +200,17 @@ class ClaudeService extends BaseService {
     return {
       policy: {
         _id: policy._id,
+        country: policy.country,
         sector: policy.sector,
         organizationSize: policy.organizationSize,
         riskAppetite: policy.riskAppetite,
         implementationTimeline: policy.implementationTimeline,
       },
       domains: Array.from(domainMap.values()),
+      initiatives: linkedInitiatives,
       totalAssessments: policy.assessments.length,
       totalQuestions: questions.length,
-    };
-  }
-
-  /**
-   * Fetches policy data for initiative-based policies (initiatives only, no assessments/domains)
-   * @param {string} policyId - The policy ID to analyze
-   * @returns {Promise<Object>} Structured initiative data for analysis
-   */
-  async fetchInitiativePolicyData(policyId) {
-    const policy = await this.Policy.findOne({
-      _id: this.ObjectId(policyId),
-      isDeleted: false,
-      source: "initiative",
-    })
-      .populate({
-        path: "initiatives",
-        select:
-          "englishName originalName slug description overview actionPlan category status responsibleOrganisation startYear endYear targetSectors initiativeType principles tags evaluationDescription monitoringMechanismDescription",
-      })
-      .lean();
-
-    if (!policy) {
-      throw new CustomError(
-        "Policy not found or is not an initiative-based policy",
-        404,
-      );
-    }
-
-    const initiatives = (policy.initiatives || []).filter((i) => i !== null);
-
-    if (initiatives.length === 0) {
-      throw new CustomError("Policy has no valid initiatives", 400);
-    }
-
-    return {
-      policy: { _id: policy._id },
-      initiatives,
-      totalInitiatives: initiatives.length,
-    };
-  }
-
-  /**
-   * Builds a prompt for Claude to analyze initiative(s) and produce policy-style readiness analysis
-   * @param {Object} initiativeData - From fetchInitiativePolicyData
-   * @returns {string} Formatted prompt
-   */
-  buildInitiativeAnalysisPrompt(initiativeData) {
-    const { initiatives } = initiativeData;
-
-    let prompt = `You are an expert AI policy analyst specializing in national and international AI governance initiatives. Your task is to analyze the following AI policy initiative(s) and provide an evidence-based readiness and impact assessment.
-
-# INITIATIVES TO ANALYZE
-
-`;
-
-    initiatives.forEach((init, idx) => {
-      prompt += `\n## Initiative ${idx + 1}: ${init.englishName || init.originalName || "Unnamed"}\n`;
-      if (init.description) prompt += `**Description**: ${init.description}\n`;
-      if (init.overview) prompt += `**Overview**: ${init.overview}\n`;
-      if (init.actionPlan) prompt += `**Action Plan**: ${init.actionPlan}\n`;
-      if (init.category) prompt += `**Category**: ${init.category}\n`;
-      if (init.status) prompt += `**Status**: ${init.status}\n`;
-      if (init.responsibleOrganisation)
-        prompt += `**Responsible Organisation**: ${init.responsibleOrganisation}\n`;
-      if (init.startYear != null || init.endYear != null) {
-        prompt += `**Timeframe**: ${init.startYear ?? "?"} - ${init.endYear ?? "ongoing"}\n`;
-      }
-      if (
-        init.targetSectors &&
-        (Array.isArray(init.targetSectors) ? init.targetSectors.length : 0)
-      ) {
-        const sectors = Array.isArray(init.targetSectors)
-          ? init.targetSectors
-              .map((s) => (typeof s === "object" ? (s?.value ?? s?.name) : s))
-              .filter(Boolean)
-          : [init.targetSectors];
-        prompt += `**Target Sectors**: ${sectors.join(", ")}\n`;
-      }
-      if (
-        init.principles &&
-        (Array.isArray(init.principles) ? init.principles.length : 0)
-      ) {
-        const principles = Array.isArray(init.principles)
-          ? init.principles
-              .map((p) => (typeof p === "object" ? (p?.value ?? p?.name) : p))
-              .filter(Boolean)
-          : [init.principles];
-        prompt += `**Principles**: ${principles.join(", ")}\n`;
-      }
-      if (init.evaluationDescription)
-        prompt += `**Evaluation**: ${init.evaluationDescription}\n`;
-      if (init.monitoringMechanismDescription)
-        prompt += `**Monitoring**: ${init.monitoringMechanismDescription}\n`;
-      prompt += "\n";
-    });
-
-    prompt += `# ANALYSIS INSTRUCTIONS
-
-Conduct a thorough analysis based only on the initiative(s) above. Do not refer to or use any domains or assessments—only the initiative content provided.
-
-Consider:
-1. Alignment with trustworthy AI and governance best practices
-2. Clarity of objectives, action plans, and monitoring
-3. Gaps, risks, and opportunities for improvement
-4. Comparative strengths across the initiatives (if multiple)
-5. Actionable recommendations for implementation or adoption
-
-Produce an overall readiness/impact score and structured findings. For the thematic sections (see output format), use initiative-based themes only—e.g. by category or key area such as "Governance", "Implementation", "Monitoring"—one entry per logical theme.
-
-# REQUIRED OUTPUT FORMAT
-
-Respond ONLY with valid JSON. Do not include markdown code blocks or any text outside the JSON structure.
-
-{
-  "overallReadiness": {
-    "score": <number 0-100>,
-    "level": "<Low|Medium|High>",
-    "summary": "<2-3 sentence executive summary>",
-    "confidenceLevel": "<High|Medium|Low>"
-  },
-  "domainAssessments": [
-    {
-      "domainId": "<theme identifier>",
-      "domainTitle": "<theme name, e.g. Governance, Implementation>",
-      "readinessScore": <number 0-100>,
-      "strengths": [{"finding": "<strength>", "evidence": "<reference>"}],
-      "weaknesses": [{"finding": "<weakness>", "impact": "<High|Medium|Low>", "evidence": "<reference>"}],
-      "recommendations": [{"priority": "<High|Medium|Low>", "action": "<action>", "timeline": "<Short-term|Medium-term|Long-term>", "resourcesNeeded": "<brief>", "expectedImpact": "<brief>"}],
-      "priorityLevel": "<High|Medium|Low>",
-      "detailedAnalysis": "<1-2 paragraph analysis>"
-    }
-  ],
-  "crossCuttingThemes": [{"theme": "<name>", "description": "<explanation>", "affectedDomains": ["<theme names>"]}],
-  "keyFindings": ["<finding 1>", "<finding 2>"],
-  "riskFactors": [{"risk": "<description>", "severity": "<High|Medium|Low>", "mitigationStrategy": "<recommendation>"}],
-  "nextSteps": [{"step": "<action>", "priority": "<High|Medium|Low>", "owner": "<suggested role>", "timeline": "<timeframe>"}]
-}`;
-
-    return prompt;
-  }
-
-  /**
-   * Analyzes initiative-based policy and returns readiness assessment (same structure as assessment-based analysis)
-   * @param {string} policyId - The policy ID (must have source "initiative" and populated initiatives)
-   * @param {Object} options - Optional parameters
-   * @returns {Promise<Object>} { analysis, metadata }
-   */
-  async analyzeInitiativeReadiness(policyId, options = {}) {
-    try {
-      const initiativeData = await this.fetchInitiativePolicyData(policyId);
-      const prompt = this.buildInitiativeAnalysisPrompt(initiativeData);
-      const claudeResponse = await this.callClaudeAPI(prompt, {
-        useExtendedThinking: options.useExtendedThinking !== false,
-      });
-      const parsedResponse = this.parseClaudeResponse(claudeResponse);
-
-      return {
-        policyId,
-        analysis: parsedResponse.analysis,
-        metadata: {
-          totalInitiatives: initiativeData.totalInitiatives,
-          totalDomains: 0,
-          totalAssessments: 0,
-          totalQuestions: 0,
-          model: this.model,
-          tokensUsed: parsedResponse.usage?.output_tokens || null,
-          tokensInput: parsedResponse.usage?.input_tokens || null,
-          thinkingUsed: parsedResponse.thinkingUsed,
-          analysisStrategy: "full-analysis",
-          analyzedAt: new Date().toISOString(),
-        },
-      };
-    } catch (error) {
-      if (error instanceof CustomError) {
-        throw error;
-      }
-      throw new CustomError(
-        `Failed to analyze initiative readiness: ${error.message}`,
-        500,
-      );
-    }
-  }
-
-  /**
-   * Quick readiness check for initiative-based policy
-   * @param {string} policyId - The policy ID to analyze
-   * @returns {Promise<Object>} Simplified readiness (overallReadiness, keyFindings, etc.)
-   */
-  async quickInitiativeReadinessCheck(policyId) {
-    const full = await this.analyzeInitiativeReadiness(policyId, {
-      useExtendedThinking: false,
-    });
-    return {
-      policyId: full.policyId,
-      overallReadiness: full.analysis.overallReadiness,
-      domainScores: (full.analysis.domainAssessments || []).map((d) => ({
-        domainId: d.domainId,
-        domainTitle: d.domainTitle,
-        readinessScore: d.readinessScore,
-        priorityLevel: d.priorityLevel,
-      })),
-      keyFindings: full.analysis.keyFindings || [],
-      analyzedAt: full.metadata.analyzedAt,
+      totalInitiatives: linkedInitiatives.length,
     };
   }
 
@@ -404,18 +221,76 @@ Respond ONLY with valid JSON. Do not include markdown code blocks or any text ou
    * @returns {string} Formatted prompt
    */
   buildAnalysisPrompt(policyData, options = {}) {
-    const { policy, domains } = policyData;
+    const { policy, domains, initiatives = [] } = policyData;
     const { focusDomain = null } = options;
+
+    const countryLabel =
+      policy.country && (policy.country.label || policy.country.value)
+        ? policy.country.label || policy.country.value
+        : "N/A";
 
     let prompt = `You are an expert AI policy analyst specializing in national AI readiness assessments. Your task is to analyze expert survey data and provide evidence-based, actionable recommendations.
 
 # POLICY CONTEXT
+- **Country**: ${countryLabel}
 - **Sector**: ${policy.sector}
 - **Organization Size**: ${policy.organizationSize}
 - **Risk Appetite**: ${policy.riskAppetite}
 - **Implementation Timeline**: ${policy.implementationTimeline}
 
-# EXPERT ASSESSMENT DATA
+`;
+
+    if (initiatives.length > 0) {
+      prompt += `# LINKED AI GOVERNANCE INITIATIVES (REFERENCE)\n\n`;
+      prompt += `The following official or catalog initiatives are attached to this policy. Use them as additional context alongside expert assessments—e.g. alignment, gaps, and how survey signals compare to stated initiative goals.\n\n`;
+      initiatives.forEach((init, idx) => {
+        prompt += `## Initiative ${idx + 1}: ${init.englishName || init.originalName || "Unnamed"}\n`;
+        if (init.description) prompt += `**Description**: ${init.description}\n`;
+        if (init.overview) prompt += `**Overview**: ${init.overview}\n`;
+        if (init.actionPlan) prompt += `**Action Plan**: ${init.actionPlan}\n`;
+        if (init.category) prompt += `**Category**: ${init.category}\n`;
+        if (init.status) prompt += `**Status**: ${init.status}\n`;
+        if (init.responsibleOrganisation) {
+          prompt += `**Responsible Organisation**: ${init.responsibleOrganisation}\n`;
+        }
+        if (init.startYear != null || init.endYear != null) {
+          prompt += `**Timeframe**: ${init.startYear ?? "?"} - ${init.endYear ?? "ongoing"}\n`;
+        }
+        if (
+          init.targetSectors &&
+          (Array.isArray(init.targetSectors) ? init.targetSectors.length : 0)
+        ) {
+          const sectors = Array.isArray(init.targetSectors)
+            ? init.targetSectors
+                .map((s) => (typeof s === "object" ? (s?.value ?? s?.name) : s))
+                .filter(Boolean)
+            : [init.targetSectors];
+          prompt += `**Target Sectors**: ${sectors.join(", ")}\n`;
+        }
+        if (
+          init.principles &&
+          (Array.isArray(init.principles) ? init.principles.length : 0)
+        ) {
+          const principles = Array.isArray(init.principles)
+            ? init.principles
+                .map((p) => (typeof p === "object" ? (p?.value ?? p?.name) : p))
+                .filter(Boolean)
+            : [init.principles];
+          prompt += `**Principles**: ${principles.join(", ")}\n`;
+        }
+        if (init.evaluationDescription) {
+          prompt += `**Evaluation**: ${init.evaluationDescription}\n`;
+        }
+        if (init.monitoringMechanismDescription) {
+          prompt += `**Monitoring**: ${init.monitoringMechanismDescription}\n`;
+        }
+        prompt += "\n";
+      });
+    }
+
+    prompt += `# EXPERT ASSESSMENT DATA
+
+Where present, each assessment lists **Radio score average (1–5)** and **Readiness percentage** (0–100, from radio answers only). Use these together with the Q&A below for a fuller picture.
 
 `;
 
@@ -426,6 +301,9 @@ Respond ONLY with valid JSON. Do not include markdown code blocks or any text ou
     domainsToAnalyze.forEach((domain, domainIndex) => {
       prompt += `\n## Domain ${domainIndex + 1}: ${domain.title}\n`;
       prompt += `**Description**: ${domain.description || "N/A"}\n`;
+      if (domain.predefinedAssessmentTitle) {
+        prompt += `**Predefined assessment title (domain default)**: ${domain.predefinedAssessmentTitle}\n`;
+      }
       if (domain.subDomains && domain.subDomains.length > 0) {
         prompt += `**Sub-domains**: ${domain.subDomains.join(", ")}\n`;
       }
@@ -442,6 +320,22 @@ Respond ONLY with valid JSON. Do not include markdown code blocks or any text ou
           prompt += `- Expert: ${assessment.fullName}\n`;
         }
         prompt += `- Status: ${assessment.status}\n`;
+        if (
+          assessment.scoreAvg != null &&
+          typeof assessment.scoreAvg === "number"
+        ) {
+          prompt += `- **Radio score average (1–5)**: ${assessment.scoreAvg} (mean of scored radio answers only)\n`;
+        } else {
+          prompt += `- **Radio score average (1–5)**: N/A (no radio-scored answers aggregated for this assessment)\n`;
+        }
+        if (
+          assessment.scorePercentage != null &&
+          typeof assessment.scorePercentage === "number"
+        ) {
+          prompt += `- **Readiness percentage (from radio scores)**: ${assessment.scorePercentage}% (derived as (scoreAvg/5)×100)\n`;
+        } else {
+          prompt += `- **Readiness percentage (from radio scores)**: N/A\n`;
+        }
         prompt += `\n**Responses**:\n`;
 
         assessment.questions.forEach((qa, qaIndex) => {
@@ -455,11 +349,16 @@ Respond ONLY with valid JSON. Do not include markdown code blocks or any text ou
 
 Conduct a thorough analysis considering:
 1. Expert consensus and disagreements across responses
-2. Evidence of existing capabilities vs. gaps
-3. Alignment with stated risk appetite and timeline
-4. Industry best practices and benchmarks
-5. Interdependencies between domains
-
+2. **Per-assessment radio aggregates** (scoreAvg 1–5 and scorePercentage where provided): use them as quantitative signals alongside free-text answers; note consistency or tension between scores and narrative responses
+3. Evidence of existing capabilities vs. gaps
+4. Alignment with stated risk appetite and timeline
+5. Industry best practices and benchmarks
+6. Interdependencies between domains
+${
+  initiatives.length > 0
+    ? "7. How expert responses relate to the linked governance initiatives (consistency, gaps, reinforcement)\n"
+    : ""
+}
 For each domain, provide:
 - **Readiness Score** (0-100): Justified assessment
 - **Strengths**: Specific capabilities and positive indicators (cite expert responses)
@@ -808,6 +707,7 @@ Respond ONLY with valid JSON. Do not include markdown code blocks or any text ou
           totalDomains: policyData.domains.length,
           totalAssessments: policyData.totalAssessments,
           totalQuestions: policyData.totalQuestions,
+          totalInitiatives: policyData.totalInitiatives ?? 0,
           model: this.model,
           tokensUsed: parsedResponse.usage?.output_tokens || null,
           tokensInput: parsedResponse.usage?.input_tokens || null,
@@ -894,6 +794,7 @@ Provide a synthesis in this JSON format:
         totalDomains: policyData.domains.length,
         totalAssessments: policyData.totalAssessments,
         totalQuestions: policyData.totalQuestions,
+        totalInitiatives: policyData.totalInitiatives ?? 0,
         model: this.model,
         analysisStrategy: "domain-by-domain",
         analyzedAt: new Date().toISOString(),

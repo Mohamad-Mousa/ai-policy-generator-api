@@ -85,7 +85,14 @@ class SubdomainService extends BaseService {
         let: { domainId: "$domain" },
         pipeline: [
           { $match: { $expr: { $eq: ["$_id", "$$domainId"] } } },
-          { $project: { title: 1, isActive: 1, icon: 1 } },
+          {
+            $project: {
+              title: 1,
+              isActive: 1,
+              icon: 1,
+              predefinedAssessmentTitle: 1,
+            },
+          },
         ],
         as: "domainLookup",
       },

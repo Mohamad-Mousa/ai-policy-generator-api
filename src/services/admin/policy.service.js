@@ -27,6 +27,28 @@ class PolicyService extends BaseService {
     if (!country) throw new CustomError("Country not found", 404);
   }
 
+  async normalizePolicyInitiativeIds(initiatives) {
+    if (initiatives === undefined || initiatives === null) return [];
+    if (!Array.isArray(initiatives)) {
+      throw new CustomError("initiatives must be an array", 400);
+    }
+    if (initiatives.length === 0) return [];
+    const uniqueStrs = [...new Set(initiatives.map((id) => String(id)))];
+    const oids = uniqueStrs.map((id, i) => {
+      if (!this.mongoose.Types.ObjectId.isValid(id)) {
+        throw new CustomError(`Invalid initiative ID at index ${i}`, 400);
+      }
+      return this.ObjectId(id);
+    });
+    const found = await this.Initiative.find({ _id: { $in: oids } }).select(
+      "_id",
+    );
+    if (found.length !== oids.length) {
+      throw new CustomError("One or more initiatives not found", 404);
+    }
+    return oids;
+  }
+
   async findMany(req_query, limit = 10) {
     if (req_query.limit) limit = +req_query.limit;
     let regexSearch = req_query.term
@@ -44,8 +66,20 @@ class PolicyService extends BaseService {
       }
     }
 
+    if (req_query.initiative) {
+      const initParts = req_query.initiative.includes(",")
+        ? req_query.initiative.split(",").map((id) => id.trim())
+        : [req_query.initiative.trim()];
+      for (const id of initParts) {
+        if (!this.mongoose.Types.ObjectId.isValid(id)) {
+          throw new CustomError("Invalid initiative id", 400);
+        }
+      }
+    }
+
     let query = {
       isDeleted: false,
+      country: { $exists: true, $ne: null },
       ...(req_query.country && {
         country: req_query.country.includes(",")
           ? {
@@ -85,7 +119,6 @@ class PolicyService extends BaseService {
             }
           : this.ObjectId(req_query.assessment),
       }),
-      ...(req_query.source && { source: req_query.source }),
       ...(req_query.initiative && {
         initiatives: req_query.initiative.includes(",")
           ? {
@@ -129,6 +162,16 @@ class PolicyService extends BaseService {
                       $regex: new RegExp(regexSearch, "i"),
                     },
                   },
+                  {
+                    "initiatives.englishName": {
+                      $regex: new RegExp(regexSearch, "i"),
+                    },
+                  },
+                  {
+                    "initiatives.originalName": {
+                      $regex: new RegExp(regexSearch, "i"),
+                    },
+                  },
                 ],
               },
             },
@@ -158,6 +201,9 @@ class PolicyService extends BaseService {
                 title: 1,
                 description: 1,
                 icon: 1,
+                predefinedAssessmentTitle: 1,
+                scoreAvg: 1,
+                scorePercentage: 1,
               },
             },
           ],
@@ -287,6 +333,7 @@ class PolicyService extends BaseService {
         $match: {
           _id: this.ObjectId(id),
           isDeleted: false,
+          country: { $exists: true, $ne: null },
         },
       },
       {
@@ -317,6 +364,9 @@ class PolicyService extends BaseService {
                 icon: 1,
                 subDomains: 1,
                 isActive: 1,
+                predefinedAssessmentTitle: 1,
+                scoreAvg: 1,
+                scorePercentage: 1,
               },
             },
           ],
@@ -473,16 +523,16 @@ class PolicyService extends BaseService {
       {
         $lookup: {
           from: "initiatives",
-          let: { initiativeIds: "$initiatives" },
+          let: { initiativeIds: { $ifNull: ["$initiatives", []] } },
           pipeline: [
             {
               $match: {
                 $expr: {
-                  $cond: {
-                    if: { $isArray: "$$initiativeIds" },
-                    then: { $in: ["$_id", "$$initiativeIds"] },
-                    else: false,
-                  },
+                  $and: [
+                    { $isArray: "$$initiativeIds" },
+                    { $gt: [{ $size: "$$initiativeIds" }, 0] },
+                    { $in: ["$_id", "$$initiativeIds"] },
+                  ],
                 },
               },
             },
@@ -502,6 +552,8 @@ class PolicyService extends BaseService {
                 endYear: 1,
                 targetSectors: 1,
                 principles: 1,
+                evaluationDescription: 1,
+                monitoringMechanismDescription: 1,
               },
             },
           ],
@@ -568,14 +620,6 @@ class PolicyService extends BaseService {
   }
 
   async create(body) {
-    const source = body.source || "assessment";
-    if (!["assessment", "initiative"].includes(source)) {
-      throw new CustomError(
-        'Invalid source. Must be "assessment" or "initiative"',
-        400,
-      );
-    }
-
     this.bodyValidationService.validateRequiredFields(body, ["analysisType"]);
     this.bodyValidationService.validateFieldTypes(body, {
       analysisType: "string",
@@ -590,101 +634,7 @@ class PolicyService extends BaseService {
       );
     }
 
-    if (source === "initiative") {
-      return this._createFromInitiatives(body);
-    }
-
     return this._createFromAssessments(body);
-  }
-
-  /**
-   * Create policy from initiatives: only initiatives + analysisType required.
-   * No domains, assessments, sector, organizationSize, riskAppetite, implementationTimeline.
-   */
-  async _createFromInitiatives(body) {
-    this.bodyValidationService.validateRequiredFields(body, [
-      "country",
-      "initiatives",
-      "analysisType",
-    ]);
-    this.bodyValidationService.validateFieldTypes(body, {
-      country: "string",
-      initiatives: "array",
-      analysisType: "string",
-    });
-
-    await this.assertCountryExists(body.country);
-
-    if (!Array.isArray(body.initiatives) || body.initiatives.length === 0) {
-      throw new CustomError("initiatives must be a non-empty array", 400);
-    }
-
-    const initiativeIds = body.initiatives.map((id) => {
-      if (!this.mongoose.Types.ObjectId.isValid(id)) {
-        throw new CustomError(`Invalid initiative ID: ${id}`, 400);
-      }
-      return this.ObjectId(id);
-    });
-
-    const validInitiatives = await this.Initiative.find({
-      _id: { $in: initiativeIds },
-    }).select("_id");
-
-    if (validInitiatives.length !== initiativeIds.length) {
-      const foundIds = new Set(validInitiatives.map((i) => i._id.toString()));
-      const missing = initiativeIds.filter(
-        (id) => !foundIds.has(id.toString()),
-      );
-      throw new CustomError(
-        `One or more initiatives not found: ${missing
-          .map((id) => id.toString())
-          .join(", ")}`,
-        404,
-      );
-    }
-
-    const policy = await this.Policy({
-      source: "initiative",
-      country: this.ObjectId(body.country),
-      initiatives: initiativeIds,
-      analysisType: body.analysisType,
-    }).save();
-    if (!policy) throw new CustomError("Failed to create policy", 500);
-
-    let analysisResult;
-    if (body.analysisType === "detailed") {
-      analysisResult = await this.ClaudeService.analyzeInitiativeReadiness(
-        policy._id,
-      );
-      policy.analysis = analysisResult.analysis;
-      policy.analysisMetadata = {
-        ...analysisResult.metadata,
-        analyzedAt: analysisResult.metadata.analyzedAt
-          ? new Date(analysisResult.metadata.analyzedAt)
-          : new Date(),
-      };
-    } else {
-      analysisResult = await this.ClaudeService.quickInitiativeReadinessCheck(
-        policy._id,
-      );
-      policy.analysis = {
-        overallReadiness: analysisResult.overallReadiness,
-        domainAssessments: (analysisResult.domainScores || []).map((ds) => ({
-          domainId: ds.domainId,
-          domainTitle: ds.domainTitle,
-          readinessScore: ds.readinessScore,
-          priorityLevel: ds.priorityLevel,
-        })),
-        keyFindings: analysisResult.keyFindings || [],
-      };
-      policy.analysisMetadata = {
-        analyzedAt: analysisResult.analyzedAt
-          ? new Date(analysisResult.analyzedAt)
-          : new Date(),
-      };
-    }
-
-    return await policy.save();
   }
 
   /**
@@ -846,11 +796,16 @@ class PolicyService extends BaseService {
       );
     }
 
+    let initiativeIds = [];
+    if (body.initiatives !== undefined) {
+      initiativeIds = await this.normalizePolicyInitiativeIds(body.initiatives);
+    }
+
     const policy = await this.Policy({
-      source: "assessment",
       country: this.ObjectId(body.country),
       domains: domainIds,
       assessments: assessmentIds,
+      ...(body.initiatives !== undefined && { initiatives: initiativeIds }),
       sector: body.sector,
       organizationSize: body.organizationSize,
       riskAppetite: body.riskAppetite,

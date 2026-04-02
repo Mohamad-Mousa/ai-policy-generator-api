@@ -1,5 +1,118 @@
 module.exports = {
   endpoints: [
+    {
+      folder: "Public",
+      auth: null,
+      items: [
+        {
+          folder: "Question",
+          auth: null,
+          items: [
+            {
+              name: "List questions by domain",
+              method: "GET",
+              url: "{{local}}/public/question",
+              params: [
+                {
+                  key: "domain",
+                  value: "{{domainId}}",
+                  description: "Domain ObjectId",
+                },
+              ],
+              successExample: {
+                code: 200,
+                body: {
+                  message: "Success!",
+                  error: false,
+                  code: 200,
+                  results: {
+                    domain: {
+                      _id: "68ffb6f06a28a56eb5a740cc",
+                      title: "Example domain",
+                      description: "Description",
+                    },
+                    questions: [],
+                    totalCount: 0,
+                  },
+                },
+              },
+              errorExample: {
+                code: 400,
+                status: "Bad Request",
+                body: {
+                  message: "Query parameter domain is required",
+                  code: 400,
+                  error: true,
+                },
+              },
+            },
+          ],
+        },
+        {
+          folder: "Assessment",
+          auth: null,
+          items: [
+            {
+              name: "Get assessment by id",
+              method: "GET",
+              url: "{{local}}/public/assessment/{{assessmentId}}",
+              params: [],
+              successExample: {
+                code: 200,
+                body: {
+                  message: "Success!",
+                  error: false,
+                  code: 200,
+                  results: { assessment: {} },
+                },
+              },
+              errorExample: {
+                code: 404,
+                status: "Not Found",
+                body: {
+                  message: "Assessment not found",
+                  code: 404,
+                  error: true,
+                },
+              },
+            },
+            {
+              name: "Submit assessment",
+              method: "POST",
+              url: "{{local}}/public/assessment",
+              bodyType: "raw",
+              body: {
+                status: "completed",
+                domain: "{{domainId}}",
+                title: "Assessment title",
+                description: "Description",
+                fullName: "Jane Doe",
+                questions: [{ question: "{{questionId}}", answer: "Option A" }],
+              },
+              params: [],
+              successExample: {
+                code: 201,
+                body: {
+                  message: "Success!",
+                  error: false,
+                  code: 201,
+                  results: {},
+                },
+              },
+              errorExample: {
+                code: 400,
+                status: "Bad Request",
+                body: {
+                  message: "Error message",
+                  code: 400,
+                  error: true,
+                },
+              },
+            },
+          ],
+        },
+      ],
+    },
     // Admin APIs
     {
       folder: "Admin",
@@ -310,6 +423,8 @@ module.exports = {
         {
           folder: "Domains",
           auth: null,
+          description:
+            "predefinedAssessmentTitle is an optional string reserved for future use (default assessment title). scoreAvg and scorePercentage are derived from linked assessments (non-deleted only), updated when assessments are created, updated, deleted, or imported—not set via domain create/update.",
           items: [
             {
               name: "Find Many",
@@ -338,6 +453,7 @@ module.exports = {
               body: {
                 title: "<string>",
                 description: "<string>",
+                predefinedAssessmentTitle: "<string>",
                 icon: "<string>",
                 isActive: true,
                 subDomains: ["<string>", "<string>"],
@@ -353,6 +469,7 @@ module.exports = {
                 _id: "<objectId>",
                 title: "<string>",
                 description: "<string>",
+                predefinedAssessmentTitle: "<string>",
                 icon: "<string>",
                 isActive: true,
                 subDomains: ["<string>", "<string>"],
@@ -774,7 +891,7 @@ module.exports = {
           folder: "Policies",
           auth: null,
           description:
-            "Assessment-backed policies: nested assessments in list/detail include scoreAvg, scorePercentage, and country on the policy. Create (assessment path) requires country.",
+            "Every policy must have a country (required in schema and enforced on list/detail). Policies link domains and assessments; optional initiatives[] (Initiative ObjectIds) adds governance context for Claude. Create accepts optional initiatives; IDs are validated against the Initiative collection.",
           items: [
             {
               name: "Find Many",
@@ -784,12 +901,6 @@ module.exports = {
                 { key: "page", value: "1", type: "query" },
                 { key: "limit", value: "10", type: "query" },
                 { key: "term", value: "", type: "query" },
-                {
-                  key: "source",
-                  value: "",
-                  type: "query",
-                  description: "assessment | initiative",
-                },
                 { key: "sector", value: "", type: "query" },
                 { key: "organizationSize", value: "", type: "query" },
                 { key: "riskAppetite", value: "", type: "query" },
@@ -801,7 +912,8 @@ module.exports = {
                   key: "initiative",
                   value: "",
                   type: "query",
-                  description: "Filter by initiative ID(s), comma-separated",
+                  description:
+                    "Filter policies that include this initiative id (comma-separated)",
                 },
                 { key: "sortBy", value: "createdAt", type: "query" },
                 { key: "sortDirection", value: "desc", type: "query" },
@@ -816,7 +928,7 @@ module.exports = {
                 { key: "assessmentPage", value: "1", type: "query" },
               ],
               description:
-                "Paginated assessments.data[] include scoreAvg, scorePercentage, domain, questions (with resolved question text).",
+                "Resolves country, domains, initiatives, and paginated assessments (scoreAvg, scorePercentage, domain, questions). Policies without a country are excluded.",
             },
             {
               name: "Create",
@@ -827,6 +939,7 @@ module.exports = {
                 country: "<objectId>",
                 domains: ["<objectId>", "<objectId>"],
                 assessments: ["<objectId>", "<objectId>"],
+                initiatives: ["<objectId>"],
                 sector: "Government",
                 organizationSize: "Small (< 50 employees)",
                 riskAppetite: "Conservative",
@@ -834,21 +947,6 @@ module.exports = {
                 analysisType: "detailed",
               },
               params: [],
-            },
-            {
-              name: "Create from initiatives",
-              method: "POST",
-              url: "{{local}}/admin/policy",
-              bodyType: "raw",
-              body: {
-                source: "initiative",
-                country: "<objectId>",
-                initiatives: ["<initiativeObjectId>"],
-                analysisType: "detailed",
-              },
-              params: [],
-              description:
-                "Analyze selected initiatives with Claude and save as a policy. Requires country, initiatives, and analysisType; no domains, assessments, sector, organizationSize, riskAppetite, or implementationTimeline. analysisType: 'detailed' | 'quick'.",
             },
             {
               name: "Delete",

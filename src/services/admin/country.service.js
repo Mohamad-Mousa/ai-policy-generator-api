@@ -8,14 +8,14 @@ class CountryService extends BaseService {
   }
 
   async findMany(req_query, limit = 10) {
-    if (req_query.limit) limit = Math.min(+(req_query.limit) || limit, 100);
+    if (req_query.limit) limit = Math.min(+req_query.limit || limit, 100);
     const regexSearch = req_query.term
       ? StringFormatter.escapeBackslashAndPlus(req_query.term)
       : "";
 
     const match = {};
     if (req_query.value != null && req_query.value !== "")
-      match.value = +(req_query.value);
+      match.value = +req_query.value;
     if (req_query.term && regexSearch) {
       match.label = { $regex: new RegExp(regexSearch, "i") };
     }
