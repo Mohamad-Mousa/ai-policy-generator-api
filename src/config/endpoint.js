@@ -368,8 +368,67 @@ module.exports = {
           ],
         },
         {
+          folder: "Subdomains",
+          auth: null,
+          items: [
+            {
+              name: "Find Many",
+              method: "GET",
+              url: "{{local}}/admin/subdomain",
+              params: [
+                { key: "page", value: "1", type: "query" },
+                { key: "limit", value: "10", type: "query" },
+                { key: "term", value: "", type: "query" },
+                { key: "isActive", value: "", type: "query" },
+                { key: "domain", value: "", type: "query" },
+                { key: "sortBy", value: "createdAt", type: "query" },
+                { key: "sortDirection", value: "desc", type: "query" },
+              ],
+            },
+            {
+              name: "Find One",
+              method: "GET",
+              url: "{{local}}/admin/subdomain/:id",
+              params: [],
+            },
+            {
+              name: "Create",
+              method: "POST",
+              url: "{{local}}/admin/subdomain",
+              bodyType: "raw",
+              body: {
+                title: "<string>",
+                domain: "<objectId>",
+                isActive: true,
+              },
+              params: [],
+            },
+            {
+              name: "Update",
+              method: "PUT",
+              url: "{{local}}/admin/subdomain/update",
+              bodyType: "raw",
+              body: {
+                _id: "<objectId>",
+                title: "<string>",
+                domain: "<objectId>",
+                isActive: true,
+              },
+              params: [],
+            },
+            {
+              name: "Delete",
+              method: "DELETE",
+              url: "{{local}}/admin/subdomain/delete/:ids",
+              params: [],
+            },
+          ],
+        },
+        {
           folder: "Questions",
           auth: null,
+          description:
+            "Radio answers are stored as [{ text, score }], scores 1–5 unique; checkbox as [{ text }]. List/detail return populated subdomain with nested domain.",
           items: [
             {
               name: "Find Many",
@@ -380,6 +439,7 @@ module.exports = {
                 { key: "limit", value: "10", type: "query" },
                 { key: "term", value: "", type: "query" },
                 { key: "isActive", value: "", type: "query" },
+                { key: "subdomain", value: "", type: "query" },
                 { key: "domain", value: "", type: "query" },
                 { key: "type", value: "", type: "query" },
                 { key: "sortBy", value: "createdAt", type: "query" },
@@ -391,6 +451,8 @@ module.exports = {
               method: "GET",
               url: "{{local}}/admin/question/:id",
               params: [],
+              description:
+                "Returns question with subdomain (nested domain). Radio options include text + score (1–5).",
             },
             {
               name: "Create",
@@ -399,25 +461,49 @@ module.exports = {
               bodyType: "raw",
               body: {
                 question: "<string>",
-                domain: "<objectId>",
+                subdomain: "<objectId>",
                 type: "text",
                 isActive: true,
               },
               params: [],
             },
             {
-              name: "Create (Radio/Checkbox)",
+              name: "Create (Radio, scored 1–5)",
               method: "POST",
               url: "{{local}}/admin/question",
               bodyType: "raw",
               body: {
                 question: "<string>",
-                domain: "<objectId>",
+                subdomain: "<objectId>",
                 type: "radio",
+                answers: [
+                  { text: "<option 1>", score: 1 },
+                  { text: "<option 2>", score: 2 },
+                  { text: "<option 3>", score: 3 },
+                  { text: "<option 4>", score: 4 },
+                  { text: "<option 5>", score: 5 },
+                ],
+                isActive: true,
+              },
+              params: [],
+              description:
+                "Radio: at most 5 options; each { text, score } with unique integer score 1–5. Plain strings are accepted and get scores by order (1..n).",
+            },
+            {
+              name: "Create (Checkbox)",
+              method: "POST",
+              url: "{{local}}/admin/question",
+              bodyType: "raw",
+              body: {
+                question: "<string>",
+                subdomain: "<objectId>",
+                type: "checkbox",
                 answers: ["<string>", "<string>"],
                 isActive: true,
               },
               params: [],
+              description:
+                "Stored as [{ text }]; strings or { text } objects accepted.",
             },
             {
               name: "Create (Number)",
@@ -426,7 +512,7 @@ module.exports = {
               bodyType: "raw",
               body: {
                 question: "<string>",
-                domain: "<objectId>",
+                subdomain: "<objectId>",
                 type: "number",
                 min: 0,
                 max: 100,
@@ -442,22 +528,40 @@ module.exports = {
               body: {
                 _id: "<objectId>",
                 question: "<string>",
-                domain: "<objectId>",
+                subdomain: "<objectId>",
                 type: "text",
                 isActive: true,
               },
               params: [],
             },
             {
-              name: "Update (Radio/Checkbox)",
+              name: "Update (Radio)",
               method: "PUT",
               url: "{{local}}/admin/question/update",
               bodyType: "raw",
               body: {
                 _id: "<objectId>",
                 question: "<string>",
-                domain: "<objectId>",
+                subdomain: "<objectId>",
                 type: "radio",
+                answers: [
+                  { text: "<option 1>", score: 1 },
+                  { text: "<option 2>", score: 2 },
+                ],
+                isActive: true,
+              },
+              params: [],
+            },
+            {
+              name: "Update (Checkbox)",
+              method: "PUT",
+              url: "{{local}}/admin/question/update",
+              bodyType: "raw",
+              body: {
+                _id: "<objectId>",
+                question: "<string>",
+                subdomain: "<objectId>",
+                type: "checkbox",
                 answers: ["<string>", "<string>"],
                 isActive: true,
               },
@@ -471,7 +575,7 @@ module.exports = {
               body: {
                 _id: "<objectId>",
                 question: "<string>",
-                domain: "<objectId>",
+                subdomain: "<objectId>",
                 type: "number",
                 min: 0,
                 max: 100,
@@ -490,6 +594,8 @@ module.exports = {
         {
           folder: "Assessments",
           auth: null,
+          description:
+            "On create/update/import, scoreAvg (mean of radio scores 1–5) and scorePercentage ((scoreAvg/5)×100) are computed and saved; both null if there are no radio answers. Each question in the body uses question (ObjectId or question text) and answer—not questionRef.",
           items: [
             {
               name: "Find Many",
@@ -511,12 +617,16 @@ module.exports = {
               method: "GET",
               url: "{{local}}/admin/assessment/template",
               params: [{ key: "domain", value: "<objectId>", type: "query" }],
+              description:
+                "Excel hints list radio options as [score] text; answers may be full text or score 1–5.",
             },
             {
               name: "Find One",
               method: "GET",
               url: "{{local}}/admin/assessment/:id",
               params: [],
+              description:
+                "Includes scoreAvg, scorePercentage, questions (question text, questionRef, answer).",
             },
             {
               name: "Create",
@@ -532,13 +642,14 @@ module.exports = {
                 isActive: true,
                 questions: [
                   {
-                    question: "<string>",
-                    questionRef: "<objectId>",
-                    answer: "<string>",
+                    question: "<objectId or question text>",
+                    answer: "<string | number for radio score 1–5>",
                   },
                 ],
               },
               params: [],
+              description:
+                "Response includes computed scoreAvg and scorePercentage (from radio answers only).",
             },
             {
               name: "Create (Mixed Question Types)",
@@ -554,28 +665,30 @@ module.exports = {
                 isActive: true,
                 questions: [
                   {
-                    question: "<string>",
-                    questionRef: "<objectId>",
-                    answer: "Text answer",
+                    question: "<objectId>",
+                    answer: "Free text for text-type question",
                   },
                   {
-                    question: "<string>",
-                    questionRef: "<objectId>",
-                    answer: "Option1",
+                    question: "<objectId>",
+                    answer: "Exact radio option label text",
                   },
                   {
-                    question: "<string>",
-                    questionRef: "<objectId>",
+                    question: "<objectId>",
+                    answer: 4,
+                  },
+                  {
+                    question: "<objectId>",
                     answer: ["Option1", "Option2"],
                   },
                   {
-                    question: "<string>",
-                    questionRef: "<objectId>",
+                    question: "<objectId>",
                     answer: 42,
                   },
                 ],
               },
               params: [],
+              description:
+                "Radio: answer may be option text or integer score 1–5. Checkbox: string array. Number: numeric.",
             },
             {
               name: "Import",
@@ -602,13 +715,14 @@ module.exports = {
                 isActive: true,
                 questions: [
                   {
-                    question: "<string>",
-                    questionRef: "<objectId>",
-                    answer: "<string>",
+                    question: "<objectId or question text>",
+                    answer: "<string | number for radio>",
                   },
                 ],
               },
               params: [],
+              description:
+                "Sending questions recalculates scoreAvg and scorePercentage. Completed assessments cannot be updated.",
             },
             {
               name: "Update (Mixed Question Types)",
@@ -625,23 +739,23 @@ module.exports = {
                 isActive: true,
                 questions: [
                   {
-                    question: "<string>",
-                    questionRef: "<objectId>",
+                    question: "<objectId>",
                     answer: "Text answer",
                   },
                   {
-                    question: "<string>",
-                    questionRef: "<objectId>",
-                    answer: "Option1",
+                    question: "<objectId>",
+                    answer: "Radio option text",
                   },
                   {
-                    question: "<string>",
-                    questionRef: "<objectId>",
+                    question: "<objectId>",
+                    answer: 3,
+                  },
+                  {
+                    question: "<objectId>",
                     answer: ["Option1", "Option2"],
                   },
                   {
-                    question: "<string>",
-                    questionRef: "<objectId>",
+                    question: "<objectId>",
                     answer: 42,
                   },
                 ],
@@ -659,6 +773,8 @@ module.exports = {
         {
           folder: "Policies",
           auth: null,
+          description:
+            "Assessment-backed policies: nested assessments in list/detail include scoreAvg, scorePercentage, and country on the policy. Create (assessment path) requires country.",
           items: [
             {
               name: "Find Many",
@@ -678,6 +794,7 @@ module.exports = {
                 { key: "organizationSize", value: "", type: "query" },
                 { key: "riskAppetite", value: "", type: "query" },
                 { key: "implementationTimeline", value: "", type: "query" },
+                { key: "country", value: "", type: "query" },
                 { key: "domain", value: "", type: "query" },
                 { key: "assessment", value: "", type: "query" },
                 {
@@ -698,6 +815,8 @@ module.exports = {
                 { key: "assessmentLimit", value: "10", type: "query" },
                 { key: "assessmentPage", value: "1", type: "query" },
               ],
+              description:
+                "Paginated assessments.data[] include scoreAvg, scorePercentage, domain, questions (with resolved question text).",
             },
             {
               name: "Create",
@@ -705,6 +824,7 @@ module.exports = {
               url: "{{local}}/admin/policy",
               bodyType: "raw",
               body: {
+                country: "<objectId>",
                 domains: ["<objectId>", "<objectId>"],
                 assessments: ["<objectId>", "<objectId>"],
                 sector: "Government",
@@ -722,12 +842,13 @@ module.exports = {
               bodyType: "raw",
               body: {
                 source: "initiative",
+                country: "<objectId>",
                 initiatives: ["<initiativeObjectId>"],
                 analysisType: "detailed",
               },
               params: [],
               description:
-                "Analyze selected initiatives with Claude and save as a policy. Only initiatives and analysisType are required; no domains, assessments, sector, organizationSize, riskAppetite, or implementationTimeline. analysisType: 'detailed' | 'quick'.",
+                "Analyze selected initiatives with Claude and save as a policy. Requires country, initiatives, and analysisType; no domains, assessments, sector, organizationSize, riskAppetite, or implementationTimeline. analysisType: 'detailed' | 'quick'.",
             },
             {
               name: "Delete",

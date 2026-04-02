@@ -41,6 +41,35 @@ class DomainService extends BaseService {
     }
     let result = await this.Domain.aggregate([
       { $match: query },
+      {
+        $lookup: {
+          from: "subdomains",
+          let: { domainId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$domain", "$$domainId"] },
+                    { $eq: ["$isDeleted", false] },
+                  ],
+                },
+              },
+            },
+            { $sort: { title: 1 } },
+            {
+              $project: {
+                _id: 1,
+                title: 1,
+                isActive: 1,
+                createdAt: 1,
+                updatedAt: 1,
+              },
+            },
+          ],
+          as: "subDomains",
+        },
+      },
       ...pipes,
       {
         $facet: {

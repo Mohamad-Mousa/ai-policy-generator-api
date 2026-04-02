@@ -33,6 +33,7 @@ class MongooseLoader {
     this.models.RefreshToken = require("../models/refresh_token.model");
     this.models.VerificationCode = require("../models/verification_code.model");
     this.models.Domain = require("../models/domain.model");
+    this.models.Subdomain = require("../models/subdomain.model");
     this.models.Setting = require("../models/setting.model");
     this.models.Question = require("../models/question.model");
     this.models.Assessment = require("../models/assessment.model");

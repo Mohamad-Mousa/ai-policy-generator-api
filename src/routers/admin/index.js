@@ -7,6 +7,7 @@ const AuthRouters = require("./auth.router");
 const FunctionRouter = require("./function.router");
 const UserLogRouter = require("./user_log.router");
 const DomainRouter = require("./domain.router");
+const SubdomainRouter = require("./subdomain.router");
 const SettingRouter = require("./setting.router");
 const QuestionRouter = require("./question.router");
 const AssessmentRouter = require("./assessment.router");
@@ -35,6 +36,7 @@ class AdminRouters {
     new FunctionRouter().configureRoutes(router);
     new UserLogRouter().configureRoutes(router);
     new DomainRouter().configureRoutes(router);
+    new SubdomainRouter().configureRoutes(router);
     new SettingRouter().configureRoutes(router);
     new QuestionRouter().configureRoutes(router);
     new AssessmentRouter().configureRoutes(router);

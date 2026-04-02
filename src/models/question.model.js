@@ -1,5 +1,21 @@
 const { mongoose, ObjectId, enums } = require("./model-template");
 
+const questionAnswerSchema = new mongoose.Schema(
+  {
+    text: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    score: {
+      type: Number,
+      min: 1,
+      max: 5,
+    },
+  },
+  { _id: false },
+);
+
 const questionSchema = new mongoose.Schema(
   {
     question: {
@@ -7,8 +23,9 @@ const questionSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
-    domain: {
+    subdomain: {
       type: ObjectId,
+      ref: "Subdomain",
       required: true,
     },
     type: {
@@ -16,7 +33,7 @@ const questionSchema = new mongoose.Schema(
       enum: enums.questionTypes,
       required: true,
     },
-    answers: [String],
+    answers: [questionAnswerSchema],
     min: Number,
     max: Number,
     isActive: {
@@ -30,21 +47,21 @@ const questionSchema = new mongoose.Schema(
       default: false,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 questionSchema.index({ isDeleted: 1, isActive: 1 });
 questionSchema.index({ createdAt: -1 });
 questionSchema.index({ question: "text" });
-questionSchema.index({ domain: 1, isDeleted: 1 });
-questionSchema.index({ domain: 1, isDeleted: 1, isActive: 1 });
-questionSchema.index({ domain: 1, isDeleted: 1, createdAt: -1 });
+questionSchema.index({ subdomain: 1, isDeleted: 1 });
+questionSchema.index({ subdomain: 1, isDeleted: 1, isActive: 1 });
+questionSchema.index({ subdomain: 1, isDeleted: 1, createdAt: -1 });
 questionSchema.index({ isDeleted: 1, createdAt: -1 });
 questionSchema.index({ question: 1, isDeleted: 1 });
 questionSchema.index({ _id: 1, isDeleted: 1 });
 questionSchema.index({ isDeleted: 1, type: 1 });
 questionSchema.index({ isDeleted: 1, type: 1, isActive: 1 });
-questionSchema.index({ domain: 1, isDeleted: 1, type: 1 });
+questionSchema.index({ subdomain: 1, isDeleted: 1, type: 1 });
 questionSchema.index({ isDeleted: 1, type: 1, createdAt: -1 });
 
 const Question = mongoose.model("Question", questionSchema);

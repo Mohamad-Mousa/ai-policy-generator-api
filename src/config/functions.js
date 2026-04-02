@@ -5,6 +5,7 @@ module.exports = {
   userLogs: "userLogs",
   settings: "settings",
   domains: "domains",
+  subdomains: "subdomains",
   questions: "questions",
   assessments: "assessments",
   policies: "policies",

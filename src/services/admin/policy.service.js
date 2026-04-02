@@ -12,8 +12,19 @@ class PolicyService extends BaseService {
     this.Domain = this.models.Domain;
     this.Assessment = this.models.Assessment;
     this.Initiative = this.models.Initiative;
+    this.Country = this.models.Country;
     this.bodyValidationService = BodyValidationService;
     this.ClaudeService = new ClaudeService();
+  }
+
+  async assertCountryExists(countryId) {
+    if (!countryId || !this.mongoose.Types.ObjectId.isValid(countryId)) {
+      throw new CustomError("Invalid country ID", 400);
+    }
+    const country = await this.Country.findOne({
+      _id: this.ObjectId(countryId),
+    }).select("_id");
+    if (!country) throw new CustomError("Country not found", 404);
   }
 
   async findMany(req_query, limit = 10) {
@@ -22,8 +33,28 @@ class PolicyService extends BaseService {
       ? StringFormatter.escapeBackslashAndPlus(req_query.term)
       : "";
 
+    if (req_query.country) {
+      const countryParts = req_query.country.includes(",")
+        ? req_query.country.split(",").map((id) => id.trim())
+        : [req_query.country.trim()];
+      for (const id of countryParts) {
+        if (!this.mongoose.Types.ObjectId.isValid(id)) {
+          throw new CustomError("Invalid country id", 400);
+        }
+      }
+    }
+
     let query = {
       isDeleted: false,
+      ...(req_query.country && {
+        country: req_query.country.includes(",")
+          ? {
+              $in: req_query.country
+                .split(",")
+                .map((id) => this.ObjectId(id.trim())),
+            }
+          : this.ObjectId(req_query.country.trim()),
+      }),
       ...(req_query.sector && {
         sector: req_query.sector,
       }),
@@ -93,6 +124,11 @@ class PolicyService extends BaseService {
                     },
                   },
                   { "domains.title": { $regex: new RegExp(regexSearch, "i") } },
+                  {
+                    "country.label": {
+                      $regex: new RegExp(regexSearch, "i"),
+                    },
+                  },
                 ],
               },
             },
@@ -150,6 +186,8 @@ class PolicyService extends BaseService {
                 description: 1,
                 fullName: 1,
                 status: 1,
+                scoreAvg: 1,
+                scorePercentage: 1,
               },
             },
           ],
@@ -188,6 +226,33 @@ class PolicyService extends BaseService {
           as: "initiatives",
         },
       },
+      {
+        $lookup: {
+          from: "countries",
+          let: { cid: "$country" },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ["$_id", "$$cid"] },
+              },
+            },
+            {
+              $project: {
+                _id: 1,
+                value: 1,
+                label: 1,
+              },
+            },
+          ],
+          as: "countryLookup",
+        },
+      },
+      {
+        $addFields: {
+          country: { $arrayElemAt: ["$countryLookup", 0] },
+        },
+      },
+      { $project: { countryLookup: 0 } },
       ...termStage,
       ...pipes,
       {
@@ -293,6 +358,8 @@ class PolicyService extends BaseService {
                       description: 1,
                       fullName: 1,
                       status: 1,
+                      scoreAvg: 1,
+                      scorePercentage: 1,
                       domain: 1,
                       questions: 1,
                     },
@@ -358,6 +425,8 @@ class PolicyService extends BaseService {
                 description: { $first: "$data.description" },
                 fullName: { $first: "$data.fullName" },
                 status: { $first: "$data.status" },
+                scoreAvg: { $first: "$data.scoreAvg" },
+                scorePercentage: { $first: "$data.scorePercentage" },
                 domain: { $first: "$data.domain" },
                 questions: { $push: "$data.questions" },
                 totalCount: { $first: "$totalCount" },
@@ -373,6 +442,8 @@ class PolicyService extends BaseService {
                     description: "$description",
                     fullName: "$fullName",
                     status: "$status",
+                    scoreAvg: "$scoreAvg",
+                    scorePercentage: "$scorePercentage",
                     domain: "$domain",
                     questions: "$questions",
                   },
@@ -438,6 +509,33 @@ class PolicyService extends BaseService {
         },
       },
       {
+        $lookup: {
+          from: "countries",
+          let: { cid: "$country" },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ["$_id", "$$cid"] },
+              },
+            },
+            {
+              $project: {
+                _id: 1,
+                value: 1,
+                label: 1,
+              },
+            },
+          ],
+          as: "countryLookup",
+        },
+      },
+      {
+        $addFields: {
+          country: { $arrayElemAt: ["$countryLookup", 0] },
+        },
+      },
+      { $project: { countryLookup: 0 } },
+      {
         $project: {
           originalAssessmentIds: 0,
         },
@@ -474,7 +572,7 @@ class PolicyService extends BaseService {
     if (!["assessment", "initiative"].includes(source)) {
       throw new CustomError(
         'Invalid source. Must be "assessment" or "initiative"',
-        400
+        400,
       );
     }
 
@@ -486,9 +584,9 @@ class PolicyService extends BaseService {
     if (!enums.analysisTypes.includes(body.analysisType)) {
       throw new CustomError(
         `Invalid analysisType. Must be one of: ${enums.analysisTypes.join(
-          ", "
+          ", ",
         )}`,
-        400
+        400,
       );
     }
 
@@ -505,13 +603,17 @@ class PolicyService extends BaseService {
    */
   async _createFromInitiatives(body) {
     this.bodyValidationService.validateRequiredFields(body, [
+      "country",
       "initiatives",
       "analysisType",
     ]);
     this.bodyValidationService.validateFieldTypes(body, {
+      country: "string",
       initiatives: "array",
       analysisType: "string",
     });
+
+    await this.assertCountryExists(body.country);
 
     if (!Array.isArray(body.initiatives) || body.initiatives.length === 0) {
       throw new CustomError("initiatives must be a non-empty array", 400);
@@ -529,22 +631,21 @@ class PolicyService extends BaseService {
     }).select("_id");
 
     if (validInitiatives.length !== initiativeIds.length) {
-      const foundIds = new Set(
-        validInitiatives.map((i) => i._id.toString())
-      );
+      const foundIds = new Set(validInitiatives.map((i) => i._id.toString()));
       const missing = initiativeIds.filter(
-        (id) => !foundIds.has(id.toString())
+        (id) => !foundIds.has(id.toString()),
       );
       throw new CustomError(
         `One or more initiatives not found: ${missing
           .map((id) => id.toString())
           .join(", ")}`,
-        404
+        404,
       );
     }
 
     const policy = await this.Policy({
       source: "initiative",
+      country: this.ObjectId(body.country),
       initiatives: initiativeIds,
       analysisType: body.analysisType,
     }).save();
@@ -553,7 +654,7 @@ class PolicyService extends BaseService {
     let analysisResult;
     if (body.analysisType === "detailed") {
       analysisResult = await this.ClaudeService.analyzeInitiativeReadiness(
-        policy._id
+        policy._id,
       );
       policy.analysis = analysisResult.analysis;
       policy.analysisMetadata = {
@@ -563,8 +664,9 @@ class PolicyService extends BaseService {
           : new Date(),
       };
     } else {
-      analysisResult =
-        await this.ClaudeService.quickInitiativeReadinessCheck(policy._id);
+      analysisResult = await this.ClaudeService.quickInitiativeReadinessCheck(
+        policy._id,
+      );
       policy.analysis = {
         overallReadiness: analysisResult.overallReadiness,
         domainAssessments: (analysisResult.domainScores || []).map((ds) => ({
@@ -591,6 +693,7 @@ class PolicyService extends BaseService {
    */
   async _createFromAssessments(body) {
     this.bodyValidationService.validateRequiredFields(body, [
+      "country",
       "domains",
       "assessments",
       "sector",
@@ -601,6 +704,7 @@ class PolicyService extends BaseService {
     ]);
 
     this.bodyValidationService.validateFieldTypes(body, {
+      country: "string",
       domains: "array",
       assessments: "array",
       sector: "string",
@@ -609,6 +713,8 @@ class PolicyService extends BaseService {
       implementationTimeline: "string",
       analysisType: "string",
     });
+
+    await this.assertCountryExists(body.country);
 
     if (!Array.isArray(body.domains) || body.domains.length === 0) {
       throw new CustomError("domains must be a non-empty array", 400);
@@ -621,34 +727,34 @@ class PolicyService extends BaseService {
     if (!enums.sectors.includes(body.sector)) {
       throw new CustomError(
         `Invalid sector. Must be one of: ${enums.sectors.join(", ")}`,
-        400
+        400,
       );
     }
 
     if (!enums.organizationSizes.includes(body.organizationSize)) {
       throw new CustomError(
         `Invalid organizationSize. Must be one of: ${enums.organizationSizes.join(
-          ", "
+          ", ",
         )}`,
-        400
+        400,
       );
     }
 
     if (!enums.riskAppetites.includes(body.riskAppetite)) {
       throw new CustomError(
         `Invalid riskAppetite. Must be one of: ${enums.riskAppetites.join(
-          ", "
+          ", ",
         )}`,
-        400
+        400,
       );
     }
 
     if (!enums.implementationTimelines.includes(body.implementationTimeline)) {
       throw new CustomError(
         `Invalid implementationTimeline. Must be one of: ${enums.implementationTimelines.join(
-          ", "
+          ", ",
         )}`,
-        400
+        400,
       );
     }
 
@@ -675,7 +781,7 @@ class PolicyService extends BaseService {
     if (validDomains.length !== domainIds.length) {
       throw new CustomError(
         "One or more domains not found, inactive, or deleted",
-        404
+        404,
       );
     }
 
@@ -692,14 +798,14 @@ class PolicyService extends BaseService {
       }).select("_id domain isDeleted isActive");
 
       const validAssessmentIds = new Set(
-        validAssessments.map((a) => a._id.toString())
+        validAssessments.map((a) => a._id.toString()),
       );
       const invalidAssessments = allAssessments.filter(
-        (a) => !validAssessmentIds.has(a._id.toString())
+        (a) => !validAssessmentIds.has(a._id.toString()),
       );
 
       const missingIds = assessmentIds.filter(
-        (id) => !allAssessments.some((a) => a._id.toString() === id.toString())
+        (id) => !allAssessments.some((a) => a._id.toString() === id.toString()),
       );
 
       if (missingIds.length > 0) {
@@ -707,41 +813,42 @@ class PolicyService extends BaseService {
           `One or more assessments not found: ${missingIds
             .map((id) => id.toString())
             .join(", ")}`,
-          404
+          404,
         );
       }
 
       const inactiveOrDeleted = invalidAssessments.filter(
-        (a) => a.isDeleted || !a.isActive
+        (a) => a.isDeleted || !a.isActive,
       );
       const wrongDomain = invalidAssessments.filter(
         (a) =>
           a.isActive &&
           !a.isDeleted &&
-          !domainIds.some((dId) => dId.toString() === a.domain?.toString())
+          !domainIds.some((dId) => dId.toString() === a.domain?.toString()),
       );
 
       if (inactiveOrDeleted.length > 0) {
         throw new CustomError(
           "One or more assessments are inactive or deleted",
-          400
+          400,
         );
       }
       if (wrongDomain.length > 0) {
         throw new CustomError(
           "One or more assessments do not belong to the provided domains",
-          400
+          400,
         );
       }
 
       throw new CustomError(
         "One or more assessments do not meet the required criteria",
-        400
+        400,
       );
     }
 
     const policy = await this.Policy({
       source: "assessment",
+      country: this.ObjectId(body.country),
       domains: domainIds,
       assessments: assessmentIds,
       sector: body.sector,
@@ -755,7 +862,7 @@ class PolicyService extends BaseService {
     let analysisResult;
     if (body.analysisType === "detailed") {
       analysisResult = await this.ClaudeService.analyzePolicyReadiness(
-        policy._id
+        policy._id,
       );
 
       policy.analysis = analysisResult.analysis;

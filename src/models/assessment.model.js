@@ -39,6 +39,14 @@ const assessmentSchema = new mongoose.Schema(
       enum: ["completed", "draft"],
       default: "draft",
     },
+    /** Mean of radio question scores (1–5); null if no radio answers */
+    scoreAvg: {
+      type: Number,
+    },
+    /** (scoreAvg / 5) × 100; null if no radio answers */
+    scorePercentage: {
+      type: Number,
+    },
     isActive: {
       type: Boolean,
       required: true,
@@ -50,7 +58,7 @@ const assessmentSchema = new mongoose.Schema(
       default: false,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 assessmentSchema.index({ isDeleted: 1, isActive: 1 });

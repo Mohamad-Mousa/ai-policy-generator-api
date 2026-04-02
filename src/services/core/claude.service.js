@@ -61,7 +61,7 @@ class ClaudeService extends BaseService {
     if (!this.apiKey) {
       throw new CustomError(
         "Claude API key is not configured. Please set CLAUDE_API_KEY in environment variables.",
-        500
+        500,
       );
     }
 
@@ -73,7 +73,7 @@ class ClaudeService extends BaseService {
 
     if (!validModels.includes(this.model)) {
       console.warn(
-        `Warning: Using non-standard model "${this.model}". Recommended: claude-sonnet-4-20250514`
+        `Warning: Using non-standard model "${this.model}". Recommended: claude-sonnet-4-20250514`,
       );
     }
   }
@@ -96,7 +96,8 @@ class ClaudeService extends BaseService {
       .populate({
         path: "assessments",
         match: { isDeleted: false, isActive: true },
-        select: "_id title description fullName status domain questions",
+        select:
+          "_id title description fullName status domain questions scoreAvg scorePercentage",
       })
       .lean();
 
@@ -131,7 +132,7 @@ class ClaudeService extends BaseService {
       isDeleted: false,
       isActive: true,
     })
-      .select("_id question domain")
+      .select("_id question")
       .lean();
 
     const questionMap = new Map();
@@ -212,7 +213,10 @@ class ClaudeService extends BaseService {
       .lean();
 
     if (!policy) {
-      throw new CustomError("Policy not found or is not an initiative-based policy", 404);
+      throw new CustomError(
+        "Policy not found or is not an initiative-based policy",
+        404,
+      );
     }
 
     const initiatives = (policy.initiatives || []).filter((i) => i !== null);
@@ -249,24 +253,37 @@ class ClaudeService extends BaseService {
       if (init.actionPlan) prompt += `**Action Plan**: ${init.actionPlan}\n`;
       if (init.category) prompt += `**Category**: ${init.category}\n`;
       if (init.status) prompt += `**Status**: ${init.status}\n`;
-      if (init.responsibleOrganisation) prompt += `**Responsible Organisation**: ${init.responsibleOrganisation}\n`;
+      if (init.responsibleOrganisation)
+        prompt += `**Responsible Organisation**: ${init.responsibleOrganisation}\n`;
       if (init.startYear != null || init.endYear != null) {
         prompt += `**Timeframe**: ${init.startYear ?? "?"} - ${init.endYear ?? "ongoing"}\n`;
       }
-      if (init.targetSectors && (Array.isArray(init.targetSectors) ? init.targetSectors.length : 0)) {
+      if (
+        init.targetSectors &&
+        (Array.isArray(init.targetSectors) ? init.targetSectors.length : 0)
+      ) {
         const sectors = Array.isArray(init.targetSectors)
-          ? init.targetSectors.map((s) => (typeof s === "object" ? s?.value ?? s?.name : s)).filter(Boolean)
+          ? init.targetSectors
+              .map((s) => (typeof s === "object" ? (s?.value ?? s?.name) : s))
+              .filter(Boolean)
           : [init.targetSectors];
         prompt += `**Target Sectors**: ${sectors.join(", ")}\n`;
       }
-      if (init.principles && (Array.isArray(init.principles) ? init.principles.length : 0)) {
+      if (
+        init.principles &&
+        (Array.isArray(init.principles) ? init.principles.length : 0)
+      ) {
         const principles = Array.isArray(init.principles)
-          ? init.principles.map((p) => (typeof p === "object" ? p?.value ?? p?.name : p)).filter(Boolean)
+          ? init.principles
+              .map((p) => (typeof p === "object" ? (p?.value ?? p?.name) : p))
+              .filter(Boolean)
           : [init.principles];
         prompt += `**Principles**: ${principles.join(", ")}\n`;
       }
-      if (init.evaluationDescription) prompt += `**Evaluation**: ${init.evaluationDescription}\n`;
-      if (init.monitoringMechanismDescription) prompt += `**Monitoring**: ${init.monitoringMechanismDescription}\n`;
+      if (init.evaluationDescription)
+        prompt += `**Evaluation**: ${init.evaluationDescription}\n`;
+      if (init.monitoringMechanismDescription)
+        prompt += `**Monitoring**: ${init.monitoringMechanismDescription}\n`;
       prompt += "\n";
     });
 
@@ -352,7 +369,7 @@ Respond ONLY with valid JSON. Do not include markdown code blocks or any text ou
       }
       throw new CustomError(
         `Failed to analyze initiative readiness: ${error.message}`,
-        500
+        500,
       );
     }
   }
@@ -612,30 +629,30 @@ Respond ONLY with valid JSON. Do not include markdown code blocks or any text ou
         if (status === 401) {
           throw new CustomError(
             "Invalid Claude API key. Please check your CLAUDE_API_KEY configuration.",
-            401
+            401,
           );
         } else if (status === 429) {
           throw new CustomError(
             "Claude API rate limit exceeded. Please try again later.",
-            429
+            429,
           );
         } else if (status === 400) {
           throw new CustomError(`Claude API request error: ${message}`, 400);
         } else {
           throw new CustomError(
             `Claude API error (${status}): ${message}`,
-            status
+            status,
           );
         }
       } else if (error.request) {
         throw new CustomError(
           "Failed to connect to Claude API. Please check your network connection.",
-          503
+          503,
         );
       } else {
         throw new CustomError(
           `Error calling Claude API: ${error.message}`,
-          500
+          500,
         );
       }
     }
@@ -679,7 +696,7 @@ Respond ONLY with valid JSON. Do not include markdown code blocks or any text ou
       if (!analysis.overallReadiness || !analysis.domainAssessments) {
         throw new CustomError(
           "Claude response missing required analysis fields",
-          500
+          500,
         );
       }
 
@@ -698,9 +715,9 @@ Respond ONLY with valid JSON. Do not include markdown code blocks or any text ou
           error.message
         }. Raw response: ${claudeResponse.content?.[0]?.text?.substring(
           0,
-          500
+          500,
         )}`,
-        500
+        500,
       );
     }
   }
@@ -717,7 +734,7 @@ Respond ONLY with valid JSON. Do not include markdown code blocks or any text ou
       const policyData = await this.fetchPolicyData(policyId);
 
       const domain = policyData.domains.find(
-        (d) => d._id.toString() === domainId
+        (d) => d._id.toString() === domainId,
       );
       if (!domain) {
         throw new CustomError("Domain not found in policy", 404);
@@ -769,7 +786,7 @@ Respond ONLY with valid JSON. Do not include markdown code blocks or any text ou
       const strategy = this.determineAnalysisStrategy(policyData);
 
       console.log(
-        `Analysis strategy: ${strategy.recommendedApproach} (estimated ${strategy.estimatedTokens} tokens)`
+        `Analysis strategy: ${strategy.recommendedApproach} (estimated ${strategy.estimatedTokens} tokens)`,
       );
 
       if (strategy.needsChunking && options.allowChunking !== false) {
@@ -808,7 +825,7 @@ Respond ONLY with valid JSON. Do not include markdown code blocks or any text ou
       }
       throw new CustomError(
         `Failed to analyze policy readiness: ${error.message}`,
-        500
+        500,
       );
     }
   }
@@ -828,7 +845,7 @@ Respond ONLY with valid JSON. Do not include markdown code blocks or any text ou
       const domainAnalysis = await this.analyzeDomain(
         policyId,
         domain._id.toString(),
-        options
+        options,
       );
       domainAnalyses.push(domainAnalysis.analysis);
     }
@@ -843,7 +860,7 @@ Domain ${idx + 1}: ${da.domainTitle}
 - Key Strengths: ${da.strengths.map((s) => s.finding).join("; ")}
 - Key Weaknesses: ${da.weaknesses.map((w) => w.finding).join("; ")}
 - Priority: ${da.priorityLevel}
-`
+`,
   )
   .join("\n")}
 
@@ -918,22 +935,22 @@ Provide a synthesis in this JSON format:
     if (!Array.isArray(policyIds) || policyIds.length < 2) {
       throw new CustomError(
         "At least 2 policy IDs required for comparison",
-        400
+        400,
       );
     }
 
     const analyses = await Promise.all(
-      policyIds.map((id) => this.quickReadinessCheck(id))
+      policyIds.map((id) => this.quickReadinessCheck(id)),
     );
 
     return {
       comparison: analyses,
       summary: {
         highestOverall: analyses.reduce((max, curr) =>
-          curr.overallReadiness.score > max.overallReadiness.score ? curr : max
+          curr.overallReadiness.score > max.overallReadiness.score ? curr : max,
         ),
         lowestOverall: analyses.reduce((min, curr) =>
-          curr.overallReadiness.score < min.overallReadiness.score ? curr : min
+          curr.overallReadiness.score < min.overallReadiness.score ? curr : min,
         ),
         averageScore:
           analyses.reduce((sum, curr) => sum + curr.overallReadiness.score, 0) /

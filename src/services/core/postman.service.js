@@ -59,6 +59,9 @@ class PostmanService {
         const itemGroup = new ItemGroup({
           name: item.folder,
           item: this.createItems(item.items, itemAuth),
+          ...(item.description !== undefined && {
+            description: item.description,
+          }),
         });
 
         if (itemAuth) {
@@ -127,6 +130,9 @@ class PostmanService {
         const newItem = new Item({
           name: item.name,
           request: request,
+          ...(item.description !== undefined && {
+            description: item.description,
+          }),
         });
 
         if (itemAuth) {
