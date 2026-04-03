@@ -8,6 +8,7 @@ class PublicAssessmentRouter {
 
   configureRoutes(router) {
     const r = express.Router();
+    r.post("/bulk", this.publicAssessmentController.createMany);
     r.get("/:id", this.publicAssessmentController.findOne);
     r.post("", this.publicAssessmentController.create);
     router.use("/assessment", r);

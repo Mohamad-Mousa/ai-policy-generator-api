@@ -8,7 +8,7 @@ class PublicQuestionRouter {
 
   configureRoutes(router) {
     const r = express.Router();
-    r.get("", this.publicQuestionController.findByDomain);
+    r.get("", this.publicQuestionController.findByDomains);
     router.use("/question", r);
   }
 }

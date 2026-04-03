@@ -439,6 +439,30 @@ class AssessmentService extends BaseService {
     return assessment;
   }
 
+  async createMany(body) {
+    if (!Array.isArray(body.assessments) || body.assessments.length === 0) {
+      throw new CustomError("assessments must be a non-empty array", 400);
+    }
+
+    const assessments = [];
+    for (let i = 0; i < body.assessments.length; i++) {
+      try {
+        const doc = await this.create(body.assessments[i]);
+        assessments.push(doc);
+      } catch (err) {
+        if (err instanceof CustomError) {
+          throw new CustomError(
+            `Assessment at index ${i}: ${err.message}`,
+            err.code,
+          );
+        }
+        throw err;
+      }
+    }
+
+    return { assessments, count: assessments.length };
+  }
+
   async update(body) {
     const assessment = await this.Assessment.findOne({
       _id: this.ObjectId(body._id),

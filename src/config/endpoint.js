@@ -14,9 +14,10 @@ module.exports = {
               url: "{{local}}/public/question",
               params: [
                 {
-                  key: "domain",
-                  value: "{{domainId}}",
-                  description: "Domain ObjectId",
+                  key: "domains",
+                  value: "{{domainId}},{{domainId2}}",
+                  description:
+                    "Comma-separated domain ObjectIds (one or more)",
                 },
               ],
               successExample: {
@@ -26,12 +27,17 @@ module.exports = {
                   error: false,
                   code: 200,
                   results: {
-                    domain: {
-                      _id: "68ffb6f06a28a56eb5a740cc",
-                      title: "Example domain",
-                      description: "Description",
-                    },
-                    questions: [],
+                    items: [
+                      {
+                        domain: {
+                          _id: "68ffb6f06a28a56eb5a740cc",
+                          title: "Example domain",
+                          description: "Description",
+                        },
+                        questions: [],
+                        totalCount: 0,
+                      },
+                    ],
                     totalCount: 0,
                   },
                 },
@@ -40,7 +46,7 @@ module.exports = {
                 code: 400,
                 status: "Bad Request",
                 body: {
-                  message: "Query parameter domain is required",
+                  message: "Query parameter domains is required",
                   code: 400,
                   error: true,
                 },
@@ -104,6 +110,57 @@ module.exports = {
                 status: "Bad Request",
                 body: {
                   message: "Error message",
+                  code: 400,
+                  error: true,
+                },
+              },
+            },
+            {
+              name: "Submit multiple assessments (by domain)",
+              method: "POST",
+              url: "{{local}}/public/assessment/bulk",
+              bodyType: "raw",
+              description:
+                "Each entry matches a single POST /public/assessment body (e.g. its own domain and questions). On error, earlier saves are kept.",
+              body: {
+                assessments: [
+                  {
+                    status: "completed",
+                    domain: "{{domainId}}",
+                    title: "Domain A assessment",
+                    description: "Description",
+                    fullName: "Jane Doe",
+                    questions: [
+                      { question: "{{questionId}}", answer: "Option A" },
+                    ],
+                  },
+                  {
+                    status: "completed",
+                    domain: "{{domainId2}}",
+                    title: "Domain B assessment",
+                    description: "Description",
+                    fullName: "Jane Doe",
+                    questions: [
+                      { question: "{{questionId2}}", answer: 4 },
+                    ],
+                  },
+                ],
+              },
+              params: [],
+              successExample: {
+                code: 201,
+                body: {
+                  message: "Success!",
+                  error: false,
+                  code: 201,
+                  results: { assessments: [], count: 2 },
+                },
+              },
+              errorExample: {
+                code: 400,
+                status: "Bad Request",
+                body: {
+                  message: "assessments must be a non-empty array",
                   code: 400,
                   error: true,
                 },

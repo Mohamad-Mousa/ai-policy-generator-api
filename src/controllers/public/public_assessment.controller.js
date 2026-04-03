@@ -25,6 +25,15 @@ class PublicAssessmentController {
       ResponseService.error(res, error.message, error.code || 400);
     }
   });
+
+  createMany = asyncHandler(async (req, res) => {
+    try {
+      const result = await this.assessmentService.createMany(req.body);
+      ResponseService.success(res, "Success!", result, 201);
+    } catch (error) {
+      ResponseService.error(res, error.message, error.code || 400);
+    }
+  });
 }
 
 module.exports = PublicAssessmentController;

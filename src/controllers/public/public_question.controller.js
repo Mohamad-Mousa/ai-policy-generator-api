@@ -8,10 +8,10 @@ class PublicQuestionController {
     this.publicQuestionService = new PublicQuestionService();
   }
 
-  findByDomain = asyncHandler(async (req, res) => {
+  findByDomains = asyncHandler(async (req, res) => {
     try {
-      const result = await this.publicQuestionService.findByDomain(
-        req.query.domain,
+      const result = await this.publicQuestionService.findByDomains(
+        req.query.domains,
       );
       ResponseService.success(res, "Success!", result, 200);
     } catch (error) {

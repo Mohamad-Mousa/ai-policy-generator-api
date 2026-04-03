@@ -2,7 +2,8 @@ const BaseService = require("../core/base.service");
 const CustomError = require("../core/custom_error.service");
 
 /**
- * Read-only question listing for public clients (by domain).
+ * Read-only question listing for public clients (by one or more domains).
+ * Query: domains=comma-separated ObjectIds.
  */
 class PublicQuestionService extends BaseService {
   constructor() {
@@ -12,14 +13,7 @@ class PublicQuestionService extends BaseService {
     this.Subdomain = this.models.Subdomain;
   }
 
-  async findByDomain(domainId) {
-    if (!domainId || String(domainId).trim() === "") {
-      throw new CustomError("Query parameter domain is required", 400);
-    }
-    if (!this.mongoose.Types.ObjectId.isValid(domainId)) {
-      throw new CustomError("Invalid domain id", 400);
-    }
-
+  async _questionsForDomain(domainId) {
     const domain = await this.Domain.findOne({
       _id: this.ObjectId(domainId),
       isDeleted: false,
@@ -31,7 +25,7 @@ class PublicQuestionService extends BaseService {
       .lean();
 
     if (!domain) {
-      throw new CustomError("Domain not found or inactive", 404);
+      return null;
     }
 
     const subIds = await this.Subdomain.find({
@@ -78,6 +72,46 @@ class PublicQuestionService extends BaseService {
       questions,
       totalCount: questions.length,
     };
+  }
+
+  async findByDomains(domainsParam) {
+    if (!domainsParam || String(domainsParam).trim() === "") {
+      throw new CustomError("Query parameter domains is required", 400);
+    }
+
+    const rawIds = String(domainsParam)
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    if (!rawIds.length) {
+      throw new CustomError("Query parameter domains is required", 400);
+    }
+
+    const uniqueIds = [...new Set(rawIds)];
+
+    for (const id of uniqueIds) {
+      if (!this.mongoose.Types.ObjectId.isValid(id)) {
+        throw new CustomError(`Invalid domain id: ${id}`, 400);
+      }
+    }
+
+    const items = [];
+    let totalCount = 0;
+
+    for (const domainId of uniqueIds) {
+      const block = await this._questionsForDomain(domainId);
+      if (!block) {
+        throw new CustomError(
+          `Domain not found or inactive: ${domainId}`,
+          404,
+        );
+      }
+      items.push(block);
+      totalCount += block.totalCount;
+    }
+
+    return { items, totalCount };
   }
 }
 
