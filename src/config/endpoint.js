@@ -481,7 +481,7 @@ module.exports = {
           folder: "Domains",
           auth: null,
           description:
-            "predefinedAssessmentTitle is an optional string reserved for future use (default assessment title). scoreAvg and scorePercentage are derived from linked assessments (non-deleted only), updated when assessments are created, updated, deleted, or imported—not set via domain create/update.",
+            "predefinedAssessmentTitle is an optional string reserved for future use (default assessment title). scoreAvg and scorePercentage are derived from linked assessments (non-deleted only), updated when assessments are created, updated, deleted, or imported—not set via domain create/update. Find Many adds overallScoreAvg and overallScorePercentage: the mean of each domain's stored scores over all domains matching the same filters (entire result set, not just the current page).",
           items: [
             {
               name: "Find Many",

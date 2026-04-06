@@ -79,6 +79,15 @@ class DomainService extends BaseService {
             { $limit: limit },
           ],
           totalCount: [{ $count: "total" }],
+          overallScores: [
+            {
+              $group: {
+                _id: null,
+                scoreAvg: { $avg: "$scoreAvg" },
+                scorePercentage: { $avg: "$scorePercentage" },
+              },
+            },
+          ],
         },
       },
     ]);
@@ -86,7 +95,21 @@ class DomainService extends BaseService {
     let totalCount = result[0].totalCount[0]
       ? result[0].totalCount[0].total
       : 0;
-    return { data, totalCount };
+    const overallRow = result[0].overallScores[0];
+    const overallScoreAvg =
+      overallRow && overallRow.scoreAvg != null
+        ? Math.round(Number(overallRow.scoreAvg) * 100) / 100
+        : null;
+    const overallScorePercentage =
+      overallRow && overallRow.scorePercentage != null
+        ? Math.round(Number(overallRow.scorePercentage) * 100) / 100
+        : null;
+    return {
+      data,
+      totalCount,
+      overallScoreAvg,
+      overallScorePercentage,
+    };
   }
 
   async findOne(id) {
