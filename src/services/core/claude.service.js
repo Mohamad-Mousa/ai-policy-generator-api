@@ -347,93 +347,160 @@ Where present, each assessment lists **Radio score average (1–5)** and **Readi
 
     prompt += `\n# ANALYSIS INSTRUCTIONS
 
-Conduct a thorough analysis considering:
-1. Expert consensus and disagreements across responses
-2. **Per-assessment radio aggregates** (scoreAvg 1–5 and scorePercentage where provided): use them as quantitative signals alongside free-text answers; note consistency or tension between scores and narrative responses
-3. Evidence of existing capabilities vs. gaps
-4. Alignment with stated risk appetite and timeline
-5. Industry best practices and benchmarks
-6. Interdependencies between domains
-${
-  initiatives.length > 0
-    ? "7. How expert responses relate to the linked governance initiatives (consistency, gaps, reinforcement)\n"
-    : ""
-}
-For each domain, provide:
-- **Readiness Score** (0-100): Justified assessment
-- **Strengths**: Specific capabilities and positive indicators (cite expert responses)
-- **Weaknesses**: Critical gaps with risk assessment
-- **Recommendations**: Prioritized, actionable steps with timelines
-- **Priority Level**: High/Medium/Low based on impact and urgency
+You are conducting a national AI readiness assessment. Your analysis must synthesize two distinct evidence layers:
+
+**Layer 1 — Expert Assessments**: The structured survey responses above, including scoreAvg (1–5 radio scale), scorePercentage (0–100), and free-text answers from domain experts.
+
+**Layer 2 — OECD Policy Initiatives**: The linked governance initiatives, which represent the country's stated policy commitments, institutional arrangements, and implementation plans.
+
+Your job is to reason across BOTH layers to produce:
+
+A. **Current State Analysis**: What the expert assessments reveal about on-the-ground reality.
+B. **Policy Alignment Check**: Where initiatives reinforce, contradict, or leave gaps relative to expert-reported reality.
+C. **Recommendations**: Concrete policy actions derived from gaps between what experts say and what initiatives commit to.
+D. **Score Improvement Roadmap**: Specific, measurable actions that would directly raise the readiness score for each domain.
+
+For each domain, conduct analysis across these five lenses:
+1. **Quantitative signals**: Use scoreAvg and scorePercentage as anchors. Flag any tension between numeric scores and free-text narrative (e.g. a high score but expert text revealing caveats, or vice versa).
+2. **Expert consensus vs. divergence**: Do multiple experts agree? Where they diverge, treat it as a risk signal.
+3. **Initiative coverage**: Which domains have strong initiative backing? Which are under-resourced by policy?
+4. **Readiness gaps**: What specific capabilities are absent that would be needed to move from the current score to a higher band (e.g. Low to Medium, or Medium to High)?
+5. **Quick wins vs. structural reforms**: Distinguish actions achievable in under 6 months from those requiring institutional change over 1–3 years.
 
 # REQUIRED OUTPUT FORMAT
 
-Respond ONLY with valid JSON. Do not include markdown code blocks or any text outside the JSON structure.
+Respond ONLY with valid JSON. Do not include markdown code blocks, backticks, or any text outside the JSON.
 
 {
   "overallReadiness": {
-    "score": <number 0-100>,
+    "score": <number 0-100, weighted average across domains>,
     "level": "<Low|Medium|High>",
-    "summary": "<2-3 sentence executive summary>",
-    "confidenceLevel": "<High|Medium|Low>"
+    "summary": "<3-4 sentence executive summary covering current state, key strengths, and the single most critical gap>",
+    "confidenceLevel": "<High|Medium|Low>",
+    "scoreDrivers": {
+      "topBoostingDomains": ["<domain titles with highest scores>"],
+      "topDraggingDomains": ["<domain titles with lowest scores pulling the overall down>"]
+    }
   },
   "domainAssessments": [
     {
       "domainId": "<domain _id>",
       "domainTitle": "<domain title>",
       "readinessScore": <number 0-100>,
+      "scoreBand": "<Low (0-39)|Medium (40-69)|High (70-100)>",
+      "quantitativeSignal": {
+        "scoreAvgAcrossAssessments": <number or null>,
+        "scorePercentageAcrossAssessments": <number or null>,
+        "narrativeAlignmentWithScore": "<Aligned|Overstated|Understated|Mixed — brief 1-sentence explanation>"
+      },
       "strengths": [
         {
           "finding": "<specific strength>",
-          "evidence": "<supporting quote or reference from expert responses>"
+          "evidence": "<direct reference to expert response or initiative — reference key ideas, do not reproduce full sentences>"
         }
       ],
       "weaknesses": [
         {
-          "finding": "<specific weakness>",
+          "finding": "<specific weakness or gap>",
           "impact": "<High|Medium|Low>",
-          "evidence": "<supporting reference>"
+          "evidence": "<supporting reference from assessments or initiative gaps>"
         }
       ],
+      "initiativeAlignment": {
+        "coverageLevel": "<Strong|Partial|Weak|None>",
+        "alignedInitiatives": ["<initiative names that support this domain>"],
+        "gaps": ["<specific policy commitments missing or insufficient for this domain>"]
+      },
       "recommendations": [
         {
           "priority": "<High|Medium|Low>",
-          "action": "<specific recommendation>",
-          "timeline": "<Short-term|Medium-term|Long-term>",
-          "resourcesNeeded": "<brief description>",
-          "expectedImpact": "<description>"
+          "action": "<specific, concrete recommendation — start with an action verb>",
+          "rationale": "<why this addresses a specific gap identified in assessments or initiatives>",
+          "timeline": "<Short-term (0–6 months)|Medium-term (6–18 months)|Long-term (18+ months)>",
+          "resourcesNeeded": "<budget tier (Low/Medium/High), key roles, or institutional actors required>",
+          "expectedImpact": "<quantified where possible — e.g. would raise domain score by approximately 10–15 points by addressing X>",
+          "linkedInitiative": "<name of OECD initiative this aligns with, or None — new initiative needed>"
         }
       ],
+      "scoreImprovementRoadmap": {
+        "currentScore": <readinessScore>,
+        "targetScore": <realistic target score within 18 months>,
+        "targetBand": "<Low|Medium|High>",
+        "criticalBlockers": ["<what must be resolved first before score can improve>"],
+        "quickWins": [
+          {
+            "action": "<action achievable within 6 months>",
+            "estimatedScoreLift": "<e.g. +5 to +10 points>",
+            "effort": "<Low|Medium|High>"
+          }
+        ],
+        "structuralReforms": [
+          {
+            "action": "<longer-term institutional or policy change required>",
+            "estimatedScoreLift": "<e.g. +15 to +25 points>",
+            "timeHorizon": "<12–36 months>"
+          }
+        ]
+      },
       "priorityLevel": "<High|Medium|Low>",
-      "detailedAnalysis": "<comprehensive 2-3 paragraph analysis>"
+      "detailedAnalysis": "<comprehensive 3-paragraph analysis: paragraph 1 — current state based on expert evidence; paragraph 2 — policy initiative alignment and gaps; paragraph 3 — path to improvement and key dependencies>"
     }
   ],
   "crossCuttingThemes": [
     {
       "theme": "<theme name>",
-      "description": "<explanation>",
-      "affectedDomains": ["<domain titles>"]
+      "description": "<explanation of the pattern observed across domains>",
+      "affectedDomains": ["<domain titles>"],
+      "policyImplication": "<what this means for overall national AI strategy>"
     }
   ],
+  "initiativeLandscapeAnalysis": {
+    "overallCoverage": "<Strong|Partial|Weak>",
+    "wellCoveredAreas": ["<domains or topics with strong initiative backing>"],
+    "underservedAreas": ["<domains or topics with weak or no initiative coverage>"],
+    "initiativeQualitySignals": "<1-2 sentences on whether initiatives appear implementation-ready based on their action plans, monitoring mechanisms, and evaluation frameworks>",
+    "recommendedNewInitiatives": [
+      {
+        "proposedFocus": "<topic or domain>",
+        "rationale": "<gap it fills>",
+        "suggestedType": "<Regulation|Strategy|Program|Research|Capacity Building|Other>"
+      }
+    ]
+  },
   "keyFindings": [
-    "<critical finding 1>",
-    "<critical finding 2>"
+    "<critical finding 1 — start with the domain or topic>",
+    "<critical finding 2>",
+    "<critical finding 3>",
+    "<critical finding 4>",
+    "<critical finding 5>"
   ],
   "riskFactors": [
     {
       "risk": "<risk description>",
       "severity": "<High|Medium|Low>",
-      "mitigationStrategy": "<recommendation>"
+      "affectedDomains": ["<domain titles>"],
+      "mitigationStrategy": "<concrete mitigation recommendation>"
     }
   ],
   "nextSteps": [
     {
-      "step": "<action>",
+      "step": "<action — start with a verb>",
       "priority": "<High|Medium|Low>",
-      "owner": "<suggested role/department>",
-      "timeline": "<timeframe>"
+      "owner": "<suggested role, ministry, or department>",
+      "timeline": "<timeframe>",
+      "dependsOn": "<prerequisite step or condition, or None>"
     }
-  ]
+  ],
+  "overallScoreImprovementSummary": {
+    "currentOverallScore": <number>,
+    "twelveMonthTarget": <realistic target if all high-priority quick wins are executed>,
+    "thirtyMonthTarget": <realistic target if structural reforms are completed>,
+    "topThreePriorityActions": [
+      "<action 1 with highest combined impact and feasibility>",
+      "<action 2>",
+      "<action 3>"
+    ]
+  }
 }`;
 
     return prompt;
@@ -592,7 +659,7 @@ Respond ONLY with valid JSON. Do not include markdown code blocks or any text ou
 
       const analysis = JSON.parse(jsonText);
 
-      if (!analysis.overallReadiness || !analysis.domainAssessments) {
+      if (!analysis.overallReadiness || !analysis.domainAssessments || !analysis.overallScoreImprovementSummary) {
         throw new CustomError(
           "Claude response missing required analysis fields",
           500,
