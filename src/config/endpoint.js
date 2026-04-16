@@ -769,7 +769,7 @@ module.exports = {
           folder: "Assessments",
           auth: null,
           description:
-            "On create/update/import, scoreAvg (mean of radio scores 1–5) and scorePercentage ((scoreAvg/5)×100) are computed and saved; both null if there are no radio answers. Each question in the body uses question (ObjectId or question text) and answer—not questionRef.",
+            "On create/update/import, scoreAvg (mean of radio scores 1–5) and scorePercentage ((scoreAvg/5)×100) are computed and saved; both null if there are no radio answers. Each question in the body uses question (ObjectId or question text) and answer—not questionRef. For status completed, domain and title are required; description and fullName are optional.",
           items: [
             {
               name: "Find Many",

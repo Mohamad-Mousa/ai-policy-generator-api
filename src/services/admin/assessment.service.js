@@ -363,8 +363,6 @@ class AssessmentService extends BaseService {
       this.bodyValidationService.validateRequiredFields(body, [
         "domain",
         "title",
-        "description",
-        "fullName",
       ]);
     }
 
@@ -487,12 +485,10 @@ class AssessmentService extends BaseService {
 
       const finalDomain = body.domain || assessment.domain;
       const finalTitle = body.title || assessment.title;
-      const finalDescription = body.description || assessment.description;
-      const finalFullName = body.fullName || assessment.fullName;
 
-      if (!finalDomain || !finalTitle || !finalDescription || !finalFullName) {
+      if (!finalDomain || !finalTitle) {
         throw new CustomError(
-          "All fields (domain, title, description, fullName) are required for completed assessments",
+          "Domain and title are required for completed assessments",
           400,
         );
       }
@@ -820,11 +816,6 @@ class AssessmentService extends BaseService {
 
         const hasTitle =
           assessmentData.title && assessmentData.title.trim() !== "";
-        const hasDescription =
-          assessmentData.description &&
-          assessmentData.description.trim() !== "";
-        const hasFullName =
-          assessmentData.fullName && assessmentData.fullName.trim() !== "";
         const hasDomain = domain !== null;
         const hasQuestions = questionsData.length > 0;
         const allQuestionsAnswered =
@@ -845,8 +836,6 @@ class AssessmentService extends BaseService {
 
         const status =
           hasTitle &&
-          hasDescription &&
-          hasFullName &&
           hasDomain &&
           hasQuestions &&
           allQuestionsAnswered
@@ -997,11 +986,11 @@ class AssessmentService extends BaseService {
       ],
       [
         "Description",
-        "Required for completed status. Assessment description (same for all rows with same Title).",
+        "Optional. Assessment description (same for all rows with same Title).",
       ],
       [
         "Full Name",
-        "Required for completed status. Full name of the person (same for all rows with same Title).",
+        "Optional. Full name of the person (same for all rows with same Title).",
       ],
       [""],
       ["How to Use:"],
@@ -1016,7 +1005,7 @@ class AssessmentService extends BaseService {
         "   - For number questions: Enter a number within the specified range",
       ],
       [
-        "3. Fill 'Description' and 'Full Name' if you want the assessment to be marked as 'completed'",
+        "3. Optionally fill 'Description' and 'Full Name' (not required for completed status)",
       ],
       ["4. You can create multiple assessments by using different titles"],
       [
@@ -1028,10 +1017,11 @@ class AssessmentService extends BaseService {
         "- Status will be automatically set to 'completed' if ALL required fields are filled:",
       ],
       ["  • Title (required)"],
-      ["  • Description (required for completed)"],
-      ["  • Full Name (required for completed)"],
       ["  • Domain (pre-filled)"],
       ["  • All Questions with Answers (required)"],
+      [
+        "  • Description and Full Name are optional (may be left blank for completed)",
+      ],
       ["- If any required field is missing, status will be set to 'draft'"],
       [""],
       ["Important Notes:"],
